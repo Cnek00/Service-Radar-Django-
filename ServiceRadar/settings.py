@@ -28,7 +28,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'default-key-for-development-do-not-us
 
 FERNET_KEY = os.environ.get(
     'FERNET_KEY', 
-    'a-dummy-key-that-should-be-replaced-in-production-123456'
+    'rX2q1N1s574r61MO9tdQk_lsFlbqBZwbqWEkyWbOTfQ='
 )
 
 
@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google', # Google OAuth için
     'rest_framework', # DRF'nin kurulu olmadığı bir ortamda JWT kullanmak için
+    'haystack',
 ]
 
 MIDDLEWARE = [
@@ -169,3 +170,23 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = 'email'
+
+
+
+# ServiceRadar/settings.py
+# ... (En sona veya uygun bir yere ekleyin)
+
+# Haystack Arama Motoru Ayarları
+HAYSTACK_CONNECTIONS = {
+    'default': {
+        'ENGINE': 'haystack.backends.whoosh_backend.WhooshEngine',
+        # Arama indekslerinin tutulacağı dizin. Proje kökünde oluşturulacak.
+        'PATH': os.path.join(BASE_DIR, 'whoosh_index'), 
+    },
+}
+
+# Arama sonuçlarının kaç tanesinin tek bir sayfada gösterileceği. (Opsiyonel)
+HAYSTACK_SEARCH_RESULTS_PER_PAGE = 20
+
+# Veritabanına her kayıt/güncelleme yapıldığında indeksi otomatik güncelleyecek.
+HAYSTACK_SIGNAL_PROCESSOR = 'haystack.signals.RealtimeSignalProcessor'
