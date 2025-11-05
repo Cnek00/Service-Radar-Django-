@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google', # Google OAuth için
     'rest_framework', # DRF'nin kurulu olmadığı bir ortamda JWT kullanmak için
     'haystack',
+    'django_q',
 ]
 
 MIDDLEWARE = [
@@ -190,3 +191,35 @@ HAYSTACK_SEARCH_RESULTS_PER_PAGE = 20
 
 # Veritabanına her kayıt/güncelleme yapıldığında indeksi otomatik güncelleyecek.
 HAYSTACK_SIGNAL_PROCESSOR = 'haystack.signals.RealtimeSignalProcessor'
+
+
+# ServiceRadar/settings.py
+# ...
+
+Q_CLUSTER = {
+    'name': 'ServiceRadarCluster',
+    'workers': 4, 
+    'timeout': 60,   # Maksimum görev süresi 60 saniye (Önceki 90'dı)
+    'retry': 120,    # Hata durumunda 120 saniye (2 dakika) sonra tekrar dene
+    'queue_limit': 50,
+    'orm': 'default',
+    
+    # Periyodik Görevler (Schedule)
+    'schedule': [
+        {
+            'name': 'check_referral_timeout',
+            'func': 'core.tasks.check_referral_timeout', # Hangi fonksiyon çalışacak
+            'minutes': 30, # Her 30 dakikada bir çalıştır (Test için sık aralık)
+            'repeats': -1, # Sürekli tekrar et
+            'hook': 'core.tasks.log_completion', # Opsiyonel: Görev bitince ne yapsın
+        },
+        # Ekstra: Haftalık raporlama için taslak
+        # {
+        #     'name': 'weekly_commission_report',
+        #     'func': 'core.tasks.generate_weekly_commission_report',
+        #     'schedule_type': 'W', # Haftalık
+        #     'repeats': -1,
+        #     'next_run': timezone.now() + timedelta(days=7), # Bir hafta sonra başla
+        # },
+    ]
+}

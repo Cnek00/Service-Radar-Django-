@@ -1,0 +1,10 @@
+# ServiceRadar Projesi Gereksinimleri
+Django
+django-ninja
+pydantic
+django-allauth
+djangorestframework-simplejwt
+cryptography
+django-haystack
+whoosh
+django-q
