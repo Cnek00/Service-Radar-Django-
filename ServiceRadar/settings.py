@@ -25,6 +25,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 SECRET_KEY = os.environ.get('SECRET_KEY', 'default-key-for-development-do-not-use-in-production') 
 # Not: Gerçek hayatta bu değeri bir .env dosyasından çekmeliyiz.
+
+FERNET_KEY = os.environ.get(
+    'FERNET_KEY', 
+    'a-dummy-key-that-should-be-replaced-in-production-123456'
+)
+
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
 
 
@@ -44,6 +52,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # my apps
     'core',
+    
+    # 3rd party apps
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google', # Google OAuth için
+    'rest_framework', # DRF'nin kurulu olmadığı bir ortamda JWT kullanmak için
 ]
 
 MIDDLEWARE = [
@@ -54,6 +69,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'ServiceRadar.urls'
@@ -127,3 +144,28 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ServiceRadar/settings.py
+# ...
+
+# Allauth ayarları
+AUTHENTICATION_BACKENDS = (
+    # Gerekli: Django Admin için varsayılan kimlik doğrulama
+    'django.contrib.auth.backends.ModelBackend',
+    # 'allauth' ile Google dahil sosyal medya girişi
+    'allauth.account.auth_backends.AuthenticationBackend',
+)
+
+# Login/Logout yönlendirmeleri
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Google OAuth için Site Framework zorunlu
+SITE_ID = 1
+
+# Kullanıcı adı gerektirmeme (email ile giriş)
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
