@@ -1,27 +1,24 @@
 # ServiceRadar/urls.py
+
 from django.contrib import admin
 from django.urls import path, include
+from ninja import NinjaAPI # <-- NinjaAPI import edilmeli
 
-# Django Ninja API'si için gerekli
-from ninja import NinjaAPI
-from core.api import router as core_router # core/api.py dosyasını daha sonra oluşturacağız
+# 1. Router'ları içe aktarma
+from core.api.router import router as core_router 
+# Eğer diğer router'lar olsaydı onlar da buraya gelirdi
 
-# API nesnesini oluştur
-api = NinjaAPI(
-    title="ServiceRadar API", 
-    description="Hizmet Eşleştirme ve Yönetim API'si",
-)
+# 2. Ana Ninja API objesini oluşturma
+api = NinjaAPI(title="ServiceRadar API", version="1.0.0")
 
-# Router'ları API'ye dahil et
-api.add_router("/core/", core_router) 
+# 3. Router'ı Ana API'ye Ekleme
+api.add_router("/core", core_router) # <-- Core router'ı /core yoluyla ekleme
 
+# 4. urlpatterns'i düzenleme
 urlpatterns = [
-    # Django Admin
     path('admin/', admin.site.urls),
-    
-    # Google OAuth ve Allauth
+    path('api/', api.urls), # <-- Tüm API trafiği /api/ altında toplanır
+    # Oturum açma, çıkış vs için allauth'u dahil etme:
     path('accounts/', include('allauth.urls')), 
-    
-    # Django Ninja API
-    path('api/', api.urls), # Tüm API çağrıları /api/ altında toplanacak
+    path('haystack/', include('haystack.urls')), 
 ]

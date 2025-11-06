@@ -1,6 +1,7 @@
 # core/api/schemas.py
 from ninja import Schema
 from typing import List, Optional
+from datetime import datetime
 
 # --- MÜŞTERİ ÇIKIŞ ŞEMALARI (Veri gösterimi) ---
 
@@ -40,6 +41,7 @@ class ReferralRequestOut(Schema):
     customer_name: str
     customer_email: str
     status: str
-    created_at: str
+    # BURAYI DÜZELTİYORUZ: str yerine datetime kullanıyoruz
+    created_at: datetime # <-- ARTIK DATETIME OBJESİ BEKLİYORUZ
     requested_service: ServiceSchema
     commission_amount: float
