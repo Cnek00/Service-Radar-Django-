@@ -61,10 +61,13 @@ INSTALLED_APPS = [
     'rest_framework', # DRF'nin kurulu olmadığı bir ortamda JWT kullanmak için
     'haystack',
     'django_q',
+    
+    'corsheaders', # react cors desteği için
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # <-- YENİ EKLENDİ (Security'den sonra)
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -223,3 +226,17 @@ Q_CLUSTER = {
         # },
     ]
 }
+
+# =======================================================
+# CORS AYARLARI (React Frontend ile Bağlantı İçin)
+# =======================================================
+
+# Geliştirme ortamında belirli bir adrese izin veriyoruz
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173", # Vite (veya diğer modern araçlar) varsayılan portu
+    "http://127.0.0.1:5173",
+    "http://localhost:3000", # Create-React-App eski varsayılan portu
+]
+
+# Eğer tarayıcıda Cookieleri veya Yetkilendirme başlıklarını kullanacaksak:
+CORS_ALLOW_CREDENTIALS = True
