@@ -3,7 +3,10 @@ Türkiye'deki niş ve zor bulunan hizmetler (örneğin, endüstriyel tamir, öze
 
 
 
-önce ayrı bir terminalden 
+önce her biri ayrı bir terminalden 
 python manage.py qcluster
 
-sonra python manage.py runserver
+python manage.py runserver
+
+npm run dev
+
