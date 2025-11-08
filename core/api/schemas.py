@@ -2,6 +2,7 @@
 from ninja import Schema
 from typing import List, Optional
 from datetime import datetime
+from typing import Literal
 
 # --- MÜŞTERİ ÇIKIŞ ŞEMALARI (Veri gösterimi) ---
 
@@ -45,3 +46,8 @@ class ReferralRequestOut(Schema):
     created_at: datetime # <-- ARTIK DATETIME OBJESİ BEKLİYORUZ
     requested_service: ServiceSchema
     commission_amount: float
+    
+    
+class RequestActionIn(Schema):
+    # Aksiyon sadece 'accept' veya 'reject' olabilir
+    action: Literal["accept", "reject"]

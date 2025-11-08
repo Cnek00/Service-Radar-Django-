@@ -1,61 +1,92 @@
 # core/api/router.py
 
-from ninja import Router 
+from ninja import Router, NinjaAPI
 from typing import List, Optional
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
-
-from core.models import Service, Company, ReferralRequest
-from .schemas import ServiceSchema, ReferralRequestIn, ReferralRequestOut 
 from django.http import HttpRequest, JsonResponse
-from haystack.query import SearchQuerySet # Haystack'i burada import edelim
 
-# Router objesini tanımlayın
+
+# 3rd Party Auth/Search Imports
+from ninja.security import HttpBearer
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+from haystack.query import SearchQuerySet 
+
+# Local Imports
+from core.models import Service, Company, ReferralRequest
+from .schemas import ServiceSchema, ReferralRequestIn, ReferralRequestOut , RequestActionIn
+
+# =======================================================
+# YETKİLENDİRME (AUTHENTICATION) SINIFI
+# =======================================================
+
+class GlobalAuth(HttpBearer):
+    """
+    JWT (Bearer Token) kullanarak yetkilendirmeyi yönetir.
+    Django Simple JWT kütüphanesini kullanır.
+    """
+    def authenticate(self, request, token):
+        try:
+            # JWT doğrulamasını yapıyoruz
+            validated_token = JWTAuthentication().get_validated_token(token)
+            user = JWTAuthentication().get_user(validated_token)
+            
+            if user and user.is_active:
+                # Başarılı olursa USER objesi döner. Bu, request.auth olur.
+                return user
+            return None
+            
+        except AuthenticationFailed:
+            return None
+        except Exception:
+            return None
+
+
+# =======================================================
+# NINJA API VE ROUTER TANIMLARI
+# =======================================================
+
+# 1. Yetkilendirmeli Ana API objesini tanımlıyoruz.
+api = NinjaAPI(auth=GlobalAuth())
+
+# 2. Rota gruplaması için Router objesini tanımlıyoruz.
 router = Router() 
 
+# Rotanın API'ye eklenmesi, tüm fonksiyonlar tanımlandıktan sonra EN SONDA yapılacaktır.
+
+
 # =======================================================
-# 0. API DURUM KONTROLÜ
+# 0. API DURUM KONTROLÜ (Herkese Açık)
 # =======================================================
 
-@router.get("/status", tags=["Genel"])
+@router.get("/status", tags=["Genel"], auth=None)
 def status(request):
     """API'nin çalışıp çalışmadığını kontrol eder."""
     return {"status": "ok", "message": "ServiceRadar API is running!"}
 
 
 # =======================================================
-# 1. MÜŞTERİ İÇİN API ENDPOINTLERİ (Keşif ve Talep)
+# 1. MÜŞTERİ İÇİN API ENDPOINTLERİ (Herkese Açık)
 # =======================================================
 
-@router.get("/services/search", response=List[ServiceSchema], tags=["Müşteri Arama"])
+@router.get("/services/search", response=List[ServiceSchema], tags=["Müşteri Arama"], auth=None)
 def search_services(request: HttpRequest, query: str = None, location: str = None):
     """Hizmetleri anahtar kelime ve konuma göre arar."""
     
-    # Başlangıçta tüm hizmetleri getir (Hiçbir filtre uygulanmazsa varsayılan)
     services = Service.objects.select_related('company').all()
     
-    # 1. Arama Motorunu (Haystack) Kullanma
     if query:
-        # Arama motorunu kullanarak ID'leri alıyoruz
         sqs = SearchQuerySet().filter(content=query)
         service_ids = [result.pk for result in sqs]
-        
-        # Sadece arama sonuçlarındaki ID'lere sahip Hizmetleri getir
         services = services.filter(id__in=service_ids)
 
-    # 2. Konum Filtrelemesi
     if location:
         services = services.filter(company__location_text__icontains=location)
         
     return services.select_related('company') 
 
-# core/api/router.py
-
-# core/api/router.py
-
-# ... (fonksiyonun üst kısmı)
-
-@router.post("/referral/create", response={201: ReferralRequestOut}, tags=["Müşteri Talep"])
+@router.post("/referral/create", response={201: ReferralRequestOut}, tags=["Müşteri Talep"], auth=None)
 def create_referral_request(request: HttpRequest, payload: ReferralRequestIn):
     """Müşteri bir firmadan hizmet talebi oluşturur."""
     
@@ -67,50 +98,69 @@ def create_referral_request(request: HttpRequest, payload: ReferralRequestIn):
         requested_service=service,
         customer_name=payload.customer_name,
         customer_email=payload.customer_email,
-        # description=payload.description
     )
     
-    # REFERRAL OBJESİNİ VE İLİŞKİLERİNİ TEKRAR ÇEKİYORUZ (Önceki hatayı önlemek için)
     final_referral = ReferralRequest.objects.select_related(
         'requested_service', 
         'requested_service__company'
     ).get(id=referral.id)
     
-    # Artık elle formatlama yapmaya gerek yok, Pydantic halledecek.
     return 201, final_referral
+
+
 # =======================================================
-# 2. FİRMA İÇİN API ENDPOINTLERİ (Yönetim) - YETKİLENDİRME GEREKLİ
+# 2. FİRMA İÇİN API ENDPOINTLERİ (Yönetim) - JWT KORUMALI
 # =======================================================
 
-@router.get("/company/requests/pending", response=List[ReferralRequestOut], tags=["Firma Yönetim"])
-def get_pending_requests(request: HttpRequest):
-    """Firmaya gelen BEKLEYEN (pending) talepleri listeler."""
-    
-    # YETKİLENDİRME (Şimdilik boş, ileride request.user kullanılacak)
-    # Eğer test için belli bir Company ID ile çalışıyorsanız:
-    # return ReferralRequest.objects.filter(target_company_id=1, status='pending').order_by('-created_at')
-    
-    # Şimdilik güvenlik gerektirmeden boş liste dönelim ki hata vermesin
-    return []
+# Bu rotalar, varsayılan GlobalAuth ayarını kullanır ve JWT token gerektirir.
 
-@router.post("/company/request/{request_id}/action", tags=["Firma Yönetim"])
-def request_action(request: HttpRequest, request_id: int, action: str):
+@router.get("/firm/my-referrals", response=List[ReferralRequestOut], tags=["Firma Paneli"])
+def list_my_referrals(request: HttpRequest):
+    """Firmaya ait tüm talepleri listeler. JWT yetkilendirme gereklidir."""
+    
+    # GlobalAuth başarılı olduğu için request.auth artık USER objesidir.
+    user = request.auth 
+    
+    # GEÇİCİ ÇÖZÜM: Test firması ID'si ile filtreleme (user.profile.company_id kullanılacak)
+    TEST_COMPANY_ID = 1 
+    
+    referrals = ReferralRequest.objects.filter(target_company_id=TEST_COMPANY_ID).select_related(
+        'requested_service',
+        'requested_service__company'
+    ).order_by('-created_at')
+    
+    return referrals
+
+@router.post("/company/request/{request_id}/action", tags=["Firma Paneli"])
+# Artık aksiyonu 'action: str' olarak değil, 'payload: RequestActionIn' olarak alıyoruz:
+def request_action(request: HttpRequest, request_id: int, payload: RequestActionIn):
     """Firmaya gelen talebi kabul (accept) veya red (reject) eder."""
     
-    # YETKİLENDİRME yapılır...
+    user = request.auth 
+    TEST_COMPANY_ID = 1 
+
+    referral = get_object_or_404(ReferralRequest, id=request_id, target_company_id=TEST_COMPANY_ID)
     
-    referral = get_object_or_404(ReferralRequest, id=request_id)
-    
-    if action == 'accept':
+    # Aksiyon değerine artık payload.action ile ulaşıyoruz:
+    if payload.action == 'accept':
         referral.status = 'accepted'
         referral.is_commission_due = True 
         message = "Talep başarıyla kabul edildi."
-    elif action == 'reject':
+    elif payload.action == 'reject':
         referral.status = 'rejected'
         message = "Talep başarıyla reddedildi."
     else:
+        # Literal kullandığımız için bu else bloğuna düşmesi beklenmez, ama güvenlik için kalsın.
         return JsonResponse({"detail": "Geçersiz aksiyon."}, status=400)
 
     referral.save()
     
     return {"success": True, "message": message}
+
+
+# =======================================================
+# FİNİSALİZASYON: ROTAYI ANA API'YE EKLEME
+# =======================================================
+
+# Tüm fonksiyonlar tanımlandıktan sonra, core rotalarını /core prefix'i altına ekliyoruz.
+api.add_router("/core", router)

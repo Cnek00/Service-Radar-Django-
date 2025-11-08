@@ -3,6 +3,9 @@
 from django.contrib import admin
 from django.urls import path, include
 from ninja import NinjaAPI # <-- NinjaAPI import edilmeli
+from core.api.router import api
+
+from rest_framework_simplejwt.views import (TokenObtainPairView , TokenRefreshView)
 
 # 1. Router'ları içe aktarma
 from core.api.router import router as core_router 
@@ -17,8 +20,15 @@ api.add_router("/core", core_router) # <-- Core router'ı /core yoluyla ekleme
 # 4. urlpatterns'i düzenleme
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', api.urls), # <-- Tüm API trafiği /api/ altında toplanır
-    # Oturum açma, çıkış vs için allauth'u dahil etme:
-    path('accounts/', include('allauth.urls')), 
-    path('haystack/', include('haystack.urls')), 
+    # JWT AUTH ROTALARI:
+    # 1. /auth/token/: Kullanıcı adı/şifre gönderilir, access ve refresh token alınır
+    path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # 2. /auth/token/refresh/: Eskimiş access token'ı yenileme token'ı ile yeniler
+    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # ... (Diğer rotalarınız)
+    path('api/', api.urls),
+    
+    path('accounts/', include('django.contrib.auth.urls')),
+    path('haystack/', include('haystack.urls')),
 ]
