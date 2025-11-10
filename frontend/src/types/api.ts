@@ -1,5 +1,7 @@
 // frontend/src/types/api.ts
 
+import type { ReactNode } from "react";
+
 /**
  * Backend API'den gelen verilerin tiplerini tanımlar.
  * Bu, Pydantic şemalarınız (schemas.py) ile birebir uyumlu olmalıdır.
@@ -7,6 +9,7 @@
 
 // 1. Company (Firma) Şeması (ServiceSchema'nın içinde)
 export interface ICompany {
+    location: any;
     id: number;
     name: string;
     slug: string;
@@ -16,6 +19,8 @@ export interface ICompany {
 
 // 2. Service (Hizmet) Şeması (Arama sonuçlarında ve Talep içinde)
 export interface IService {
+    price_range: any;
+    company_name: string;
     id: number;
     title: string;
     description: string;
@@ -38,6 +43,10 @@ export interface IReferralRequestIn {
 // 4. Referral Request Output (Talep Çıkışı - 201 Created yanıtı)
 // created_at alanını backend'de datetime olarak ayarladığımız için burada string olarak alıyoruz (ISO formatı)
 export interface IReferralRequestOut {
+    user_phone: ReactNode;
+    user_email: ReactNode;
+    notes: string;
+    service: ReactNode;
     id: number;
     customer_name: string;
     customer_email: string;
