@@ -142,10 +142,12 @@ def list_my_referrals(request: HttpRequest):
     user_firm = getattr(user, 'firm', None)
     if not user_firm:
         return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    # Resolve the corresponding Company for this Firm (we create a Company at firm registration).
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
 
-    # Firm model and Company model are separate in this project. Compare via slug to avoid
-    # type-mismatch between Firm and Company instances.
-    referrals = ReferralRequest.objects.filter(target_company__slug=user_firm.slug).select_related(
+    referrals = ReferralRequest.objects.filter(target_company=company).select_related(
         'requested_service',
         'requested_service__company'
     ).order_by('-created_at')
@@ -170,8 +172,12 @@ def request_action(request: HttpRequest, request_id: int, payload: RequestAction
         user_firm = getattr(user, 'firm', None)
         if not user_firm:
             return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
-    # Compare by slug to match Company <-> Firm mapping (both models have a slug field)
-    allowed = (getattr(referral.target_company, 'slug', None) == getattr(user_firm, 'slug', None))
+
+        company = Company.objects.filter(slug=user_firm.slug).first()
+        if not company:
+            return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+
+        allowed = (referral.target_company_id == company.id)
 
     if not allowed:
         return JsonResponse({"detail": "Bu talep üzerinde işlem yapma yetkiniz yok."}, status=403)
@@ -273,6 +279,16 @@ def register_firm_and_user(request: HttpRequest, payload: FirmRegisterIn):
                 is_active=True,
                 firm=firm,
                 is_firm_manager=True,
+            )
+
+            # Ayrıca core.Company objesini de oluşturalım ve firmaya eşleştirelim.
+            # owner alanı nullable yaptığımız için burada None bırakıyoruz.
+            company = Company.objects.create(
+                owner=None,
+                name=payload.firm_name,
+                slug=slugify(payload.firm_name)[:50],
+                description='',
+                location_text=payload.location or ''
             )
 
     except Exception as e:

@@ -28,7 +28,14 @@ class UserProfile(models.Model):
 # 1. Firma/İşletme Modeli (Hassas Veri Şifreleme İçerir)
 class Company(models.Model):
     # Bir Firma, bir "seller" (satıcı) rolüne sahip UserProfile ile ilişkilidir
-    owner = models.ForeignKey(UserProfile, on_delete=models.CASCADE, limit_choices_to={'role': 'seller'})
+    # Owner may be missing for Companies created programmatically during firm registration.
+    owner = models.ForeignKey(
+        UserProfile,
+        on_delete=models.SET_NULL,
+        limit_choices_to={'role': 'seller'},
+        null=True,
+        blank=True,
+    )
     
     name = models.CharField(max_length=255, verbose_name="Firma Adı")
     slug = models.SlugField(unique=True, help_text="URL için küçük harf ve tire ile ayrılmış isim")
