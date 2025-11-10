@@ -2,30 +2,32 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-// YENİ HOOK'UMUZ: Oturum ve Admin durumunu çeker
-import { useAuth } from '../hooks/useAuth'; 
+import { useAuth } from '../hooks/useAuth'; // useAuth hook'u ile yetki ve çıkış bilgisini alıyoruz
 
 const Header: React.FC = () => {
-    // Hook'tan isSuperAdmin bilgisini çekiyoruz
+    // Hook'tan yetki bilgilerini çekiyoruz
     const { isAuthenticated: loggedIn, isSuperAdmin, logout } = useAuth(); 
 
     return (
         <header className="bg-gray-800 text-white p-4 shadow-md sticky top-0 z-40">
             <div className="container mx-auto flex justify-between items-center">
                 
+                {/* Sol Taraf: Başlık */}
                 <Link to="/" className="text-2xl font-bold hover:text-gray-300 transition duration-300">
                     Service Radar
                 </Link>
                 
+                {/* Sağ Taraf: Navigasyon ve Auth Düğmeleri */}
                 <nav className="flex items-center space-x-6">
+                    {/* Anasayfa Linki */}
                     <Link 
                         to="/" 
                         className="hover:text-gray-300 transition duration-300"
                     >
                         Anasayfa
                     </Link>
-                    
-                    {/* YENİ: Admin Paneli Linki (Sadece Süper Adminler görür) */}
+
+                    {/* Admin Paneli Linki (Sadece Süper Adminler görür) */}
                     {isSuperAdmin && (
                         <Link 
                             to="/admin-panel" 
@@ -34,7 +36,7 @@ const Header: React.FC = () => {
                             ADMİN
                         </Link>
                     )}
-
+                    
                     {/* Firma Paneli Linki */}
                     <Link 
                         to="/firm-panel" 
@@ -43,20 +45,40 @@ const Header: React.FC = () => {
                         Firma Paneli
                     </Link>
 
+                    {/* Oturum Durumu Kontrolü */}
                     {loggedIn ? (
+                        // Giriş Yapılmışsa: Çıkış Yap Düğmesi
                         <button
-                            onClick={logout} 
+                            onClick={logout} // authService'deki fonksiyonu çağırır
                             className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
                         >
                             Çıkış Yap
                         </button>
                     ) : (
-                        <Link 
-                            to="/login" 
-                            className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
-                        >
-                            Giriş Yap
-                        </Link>
+                        // Giriş Yapılmamışsa: Giriş ve Kayıt Linkleri
+                        <>
+                            {/* YENİ: Müşteri Kayıt Linki */}
+                            <Link 
+                                to="/register" 
+                                className="hover:text-gray-300 transition duration-300 text-sm"
+                            >
+                                Müşteri Kayıt
+                            </Link>
+                            {/* YENİ: Firma Kayıt Linki */}
+                            <Link 
+                                to="/firm-register" 
+                                className="hover:text-gray-300 transition duration-300 text-sm"
+                            >
+                                Firma Kayıt
+                            </Link>
+                            {/* Giriş Yap Linki */}
+                            <Link 
+                                to="/login" 
+                                className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
+                            >
+                                Giriş Yap
+                            </Link>
+                        </>
                     )}
                 </nav>
             </div>

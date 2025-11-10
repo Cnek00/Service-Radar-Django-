@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { type IReferralRequestOut } from '../types/api';
 // Yeni eklediğimiz admin fonksiyonunu import ediyoruz
-import { fetchAllReferrals, handleReferralAction } from '../apiClient'; 
+import { fetchAllReferrals, handleReferralAction } from '../apiClient';
 import { CheckCircle, XCircle, Clock, Building2, User, Mail, Zap, Calendar } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -16,15 +16,15 @@ export default function AdminPanel() {
         try {
             setIsLoading(true);
             // Tüm sistemdeki talepleri çekmek için Admin API fonksiyonunu çağır
-            const data = await fetchAllReferrals(); 
+            const data = await fetchAllReferrals();
             // Tarihe göre ters sıralama (en yeni en üstte)
-            const sortedData = data.sort((a, b) => 
+            const sortedData = data.sort((a: IReferralRequestOut, b: IReferralRequestOut) =>
                 new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
             setReferrals(sortedData);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Talepler Admin yetkisiyle yüklenemedi';
-            setError(errorMessage); 
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -37,9 +37,9 @@ export default function AdminPanel() {
     // Firma Paneli ile aynı aksiyon fonksiyonunu kullanır
     const handleStatusUpdate = async (id: number, status: 'accept' | 'reject') => {
         try {
-            await handleReferralAction(id, status); 
+            await handleReferralAction(id, status);
             // Başarılı olursa listeyi yeniden yükle
-            await loadReferrals(); 
+            await loadReferrals();
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Durum güncellenemedi';
             setError(errorMessage);
@@ -65,11 +65,11 @@ export default function AdminPanel() {
             </div>
         );
     }
-    
+
     // Hata durumunda (Örn: Admin yetkisi yoksa)
     if (error && filteredReferrals.length === 0 && !isLoading) {
-         return (
-             <div className="min-h-[500px] flex items-center justify-center">
+        return (
+            <div className="min-h-[500px] flex items-center justify-center">
                 <div className="p-8 bg-red-50 border border-red-200 rounded-xl text-red-700 max-w-lg text-center">
                     <Zap className="w-8 h-8 mx-auto mb-4" />
                     <h2 className="text-xl font-bold mb-2">Erişim Reddedildi</h2>
@@ -100,7 +100,7 @@ export default function AdminPanel() {
                         Reddedilen ({referrals.filter(r => r.status === 'rejected').length})
                     </button>
                 </div>
-                
+
                 {filteredReferrals.length === 0 ? (
                     <div className="p-10 text-center bg-white rounded-lg shadow-md mt-12">
                         <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -124,7 +124,7 @@ export default function AdminPanel() {
                                         <span>{new Date(referral.created_at).toLocaleDateString()}</span>
                                     </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                     <div className="flex items-center space-x-2 text-gray-800">
                                         <User className="w-5 h-5 text-blue-500" />
@@ -137,10 +137,10 @@ export default function AdminPanel() {
                                     <div className="flex items-center space-x-2 text-gray-600">
                                         <Building2 className="w-5 h-5 text-blue-500" />
                                         {/* Talep hangi firmaya ait, Admin'e bu bilgiyi göster */}
-                                        <span className="font-medium text-gray-900">{referral.target_company.name}</span>
+                                        <span className="font-medium text-gray-900">{referral.target_company?.name ?? `Firma ID:${referral.target_company_id}`}</span>
                                     </div>
                                 </div>
-                                
+
                                 <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                                     <h4 className="font-semibold text-gray-700 mb-1">Talep Detayı:</h4>
                                     <p className="text-gray-600 text-sm">{referral.description}</p>

@@ -4,6 +4,10 @@ from typing import List, Optional
 from datetime import datetime
 from typing import Literal
 
+# Genel hata şeması: API hata cevaplarında ortak olarak kullanılır
+class ErrorSchema(Schema):
+    detail: str
+
 # --- MÜŞTERİ ÇIKIŞ ŞEMALARI (Veri gösterimi) ---
 
 class CompanySchema(Schema):

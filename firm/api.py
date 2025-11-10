@@ -8,7 +8,7 @@ from typing import List
 
 from users.models import User
 from firm.schemas import UserSchema, FirmEmployeeCreateSchema, FirmEmployeeUpdateSchema
-from firm.permissions import IsFirmManager # Firma Yöneticisi izni
+from firm.permissions import IsFirmManager, IsFirmEmployee # Firma izinleri
 from core.api.schemas import ErrorSchema # Varsayılan hata şeması
 
 # Firmaya ait router

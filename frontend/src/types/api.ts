@@ -1,36 +1,116 @@
 // frontend/src/types/api.ts
 
-import type { ReactNode } from "react";
-
 /**
  * Backend API'den gelen verilerin tiplerini tanımlar.
- * Bu, Pydantic şemalarınız (schemas.py) ile birebir uyumlu olmalıdır.
+ * Bu, Django REST Framework Serializer'larınız ile uyumlu olmalıdır.
  */
 
 // 1. Company (Firma) Şeması (ServiceSchema'nın içinde)
 export interface ICompany {
-    location: any;
     id: number;
     name: string;
     slug: string;
     description: string;
+    // Django'da location veya location_text olarak tutulabilir
+    location: string;
     location_text: string;
 }
 
 // 2. Service (Hizmet) Şeması (Arama sonuçlarında ve Talep içinde)
 export interface IService {
-    price_range: any;
-    company_name: string;
     id: number;
     title: string;
     description: string;
-    price_range_min: number | null; // float için number kullanıyoruz
-    price_range_max: number | null; // null olabilir
-    company: ICompany; // İlişkili firma objesi
+    // Fiyat aralığı bilgisi
+    price_range: string;
+    price_range_min: number | null;
+    price_range_max: number | null;
+
+    // İlişkili firma bilgisi
+    company: ICompany;
+    company_name: string; // Kolay erişim için
 }
 
-// 3. Referral Request Input (Talep Girişi - POST için)
-// Bu, Insomnia'da gönderdiğimiz JSON verisidir.
+// --------------------------------------------------------------------------------
+// KULLANICI VE YETKİLENDİRME TİPLERİ
+// --------------------------------------------------------------------------------
+
+/**
+ * Giriş (Login) için gönderilen temel veriler.
+ * Not: Django'da genelde `username` veya `email` kullanılır, biz `email` kullandık.
+ */
+export interface UserCredentials {
+    email: string;
+    password: string;
+}
+
+/**
+ * Müşteri Kaydı (Register) için gönderilen veriler.
+ */
+export interface IRegisterIn {
+    username: string;
+    email: string;
+    full_name: string;
+    password: string;
+    is_firm: boolean;
+}
+
+/**
+ * Backend'den gelen başarılı Login cevabı.
+ */
+export interface ILoginOut {
+    access: string;
+    refresh: string;
+    // Kullanıcıya ait temel bilgiler (authService'e kaydedilir)
+    user_id: number; // Kullanıcı ID'si (JWT içinde de olabilir)
+    is_superuser: boolean;
+    is_firm_manager: boolean;
+    full_name: string;
+    // Backend'de Django-Q kullanıldığı için user.id'yi kaybetmeyelim
+    id: number;
+}
+
+/**
+ * Login işleminin sonucu.
+ */
+export interface LoginResult {
+    success: boolean;
+    error?: string;
+}
+
+// --------------------------------------------------------------------------------
+// FİRMA KAYIT TİPLERİ (Çok Amaçlı)
+// --------------------------------------------------------------------------------
+
+/**
+ * Firma Kaydı (FirmRegister) için gönderilen veriler.
+ * Hem kullanıcı (yönetici) hem de firma bilgilerini içerir.
+ */
+export interface IFirmRegisterIn {
+    // Kullanıcı (Yönetici) Bilgileri
+    username: string;
+    email: string;
+    full_name: string;
+    password: string;
+
+    // Firma (Company) Bilgileri
+    firm_name: string;
+    tax_number: string; // Vergi Numarası/TCKN
+    legal_address: string;
+    phone_number: string;
+    location: string;
+    working_hours: string;
+    iban: string;
+}
+
+
+// --------------------------------------------------------------------------------
+// REFERANS TALEPLERİ (REFERRAL) TİPLERİ
+// --------------------------------------------------------------------------------
+
+/**
+ * Referral Request Input (Talep Girişi - POST için).
+ */
 export interface IReferralRequestIn {
     target_company_id: number;
     requested_service_id: number;
@@ -39,39 +119,31 @@ export interface IReferralRequestIn {
     description: string;
 }
 
-
-// 4. Referral Request Output (Talep Çıkışı - 201 Created yanıtı)
-// created_at alanını backend'de datetime olarak ayarladığımız için burada string olarak alıyoruz (ISO formatı)
+/**
+ * Referral Request Output (Gelen Talep - GET için).
+ * Firma Panelinde gösterilir.
+ */
 export interface IReferralRequestOut {
-    target_company: any;
-    description: ReactNode;
-    user_phone: ReactNode;
-    user_email: ReactNode;
-    notes: string;
-    service: ReactNode;
     id: number;
+    target_company_id: number;
+    requested_service_id: number;
     customer_name: string;
     customer_email: string;
+    description: string;
     status: 'pending' | 'accepted' | 'rejected'; // Durumlar için kesin tipler
     created_at: string; // ISO formatında tarih (Örn: "2025-11-06T18:20:00.000Z")
-    requested_service: IService; // İlişkili hizmet objesi (ServiceSchema)
+
+    // İlişkili objeler
+    requested_service: IService;
     commission_amount: number;
+    // Bazı backend serializer'ları target_company objesini de dönebilir
+    target_company?: ICompany;
 }
 
-/**
- * Backend'den gelen başarılı Login cevabı.
- */
-export interface ILoginOut {
-    id(id: any): string;
-    full_name(FULL_NAME_KEY: string, full_name: any): unknown;
-    access: string;
-    refresh: string;
-    // YENİ EKLENEN KRİTİK ALAN
-    is_superuser: boolean; 
-    // Firmaların kendi içinde kullanıcı yönetimi için bunu da ekleyelim
-    is_firm_manager: boolean; 
-}
 
+// --------------------------------------------------------------------------------
+// FİRMA KULLANICI YÖNETİMİ TİPLERİ
+// --------------------------------------------------------------------------------
 
 // Firma Çalışanı/Kullanıcı Tipi (Backend UserSchema karşılığı)
 export interface IUser {
@@ -80,12 +152,9 @@ export interface IUser {
     email: string;
     full_name: string;
     is_firm_manager: boolean; // Firma Yöneticisi mi?
-    role: string; // 'firm_employee' veya 'firm_manager'
-    // İsteğe bağlı olarak, kullanıcıya bağlı firma bilgileri (kullanılıyorsa)
-    // firm?: { name: string, ... };
 }
 
-// Yeni Çalışan Oluşturma Giriş Tipi (Backend FirmEmployeeCreateSchema karşılığı)
+// Yeni Çalışan Oluşturma (POST)
 export interface FirmEmployeeCreatePayload {
     email: string;
     username: string;
@@ -93,7 +162,7 @@ export interface FirmEmployeeCreatePayload {
     password: string;
 }
 
-// Çalışan Yetki Güncelleme Giriş Tipi (Backend FirmEmployeeUpdateSchema karşılığı)
+// Çalışan Rol Güncelleme (PUT)
 export interface FirmEmployeeUpdatePayload {
     is_firm_manager: boolean;
 }

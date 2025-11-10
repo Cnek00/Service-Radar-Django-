@@ -16,6 +16,15 @@ from haystack.query import SearchQuerySet
 # Local Imports
 from core.models import Service, Company, ReferralRequest
 from .schemas import ServiceSchema, ReferralRequestIn, ReferralRequestOut , RequestActionIn
+from django.db import transaction
+from django.contrib.auth.hashers import make_password
+from django.utils.text import slugify
+
+# User and Firm models for register endpoints
+from users.models import User
+from firm.models import Firm
+from ninja import Schema
+from firm.api import router as firm_management_router
 
 # =======================================================
 # YETKİLENDİRME (AUTHENTICATION) SINIFI
@@ -120,11 +129,23 @@ def list_my_referrals(request: HttpRequest):
     
     # GlobalAuth başarılı olduğu için request.auth artık USER objesidir.
     user = request.auth 
-    
-    # GEÇİCİ ÇÖZÜM: Test firması ID'si ile filtreleme (user.profile.company_id kullanılacak)
-    TEST_COMPANY_ID = 1 
-    
-    referrals = ReferralRequest.objects.filter(target_company_id=TEST_COMPANY_ID).select_related(
+
+    # Eğer kullanıcı süperuser ise tüm talepleri görsün (admin için)
+    if getattr(user, 'is_superuser', False):
+        referrals = ReferralRequest.objects.select_related(
+            'requested_service',
+            'requested_service__company'
+        ).order_by('-created_at')
+        return referrals
+
+    # Kullanıcının firması üzerinden filtreleme yap (kullanıcı firmaya bağlı değilse erişim yok)
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+
+    # Firm model and Company model are separate in this project. Compare via slug to avoid
+    # type-mismatch between Firm and Company instances.
+    referrals = ReferralRequest.objects.filter(target_company__slug=user_firm.slug).select_related(
         'requested_service',
         'requested_service__company'
     ).order_by('-created_at')
@@ -135,27 +156,144 @@ def list_my_referrals(request: HttpRequest):
 # Artık aksiyonu 'action: str' olarak değil, 'payload: RequestActionIn' olarak alıyoruz:
 def request_action(request: HttpRequest, request_id: int, payload: RequestActionIn):
     """Firmaya gelen talebi kabul (accept) veya red (reject) eder."""
-    
-    user = request.auth 
-    TEST_COMPANY_ID = 1 
 
-    referral = get_object_or_404(ReferralRequest, id=request_id, target_company_id=TEST_COMPANY_ID)
-    
+    user = request.auth
+
+    # Get the referral; raise 404 if not found
+    referral = get_object_or_404(ReferralRequest, id=request_id)
+
+    # Eğer kullanıcı süperuser ise izin ver
+    if getattr(user, 'is_superuser', False):
+        allowed = True
+    else:
+        # Kullanıcının firması ile talebin hedef firması eşleşmeli
+        user_firm = getattr(user, 'firm', None)
+        if not user_firm:
+            return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    # Compare by slug to match Company <-> Firm mapping (both models have a slug field)
+    allowed = (getattr(referral.target_company, 'slug', None) == getattr(user_firm, 'slug', None))
+
+    if not allowed:
+        return JsonResponse({"detail": "Bu talep üzerinde işlem yapma yetkiniz yok."}, status=403)
+
     # Aksiyon değerine artık payload.action ile ulaşıyoruz:
     if payload.action == 'accept':
+        if referral.status != 'pending':
+            return JsonResponse({"detail": "Bu talep zaten işlenmiş."}, status=400)
         referral.status = 'accepted'
-        referral.is_commission_due = True 
+        referral.is_commission_due = True
         message = "Talep başarıyla kabul edildi."
     elif payload.action == 'reject':
+        if referral.status != 'pending':
+            return JsonResponse({"detail": "Bu talep zaten işlenmiş."}, status=400)
         referral.status = 'rejected'
         message = "Talep başarıyla reddedildi."
     else:
-        # Literal kullandığımız için bu else bloğuna düşmesi beklenmez, ama güvenlik için kalsın.
         return JsonResponse({"detail": "Geçersiz aksiyon."}, status=400)
 
     referral.save()
-    
+
     return {"success": True, "message": message}
+
+
+# =======================================================
+# KULLANICI / FİRMA KAYIT ENDPOINTLERİ (PUBLIC)
+# =======================================================
+
+
+class UserRegisterIn(Schema):
+    username: str
+    email: str
+    full_name: str
+    password: str
+    is_firm: bool = False
+
+
+@router.post('/users/register', tags=['Kayıt'], auth=None)
+def register_user(request: HttpRequest, payload: UserRegisterIn):
+    """Basit müşteri kullanıcı kaydı. Eğer is_firm True ise firma kaydı için farklı endpoint kullanın."""
+    # Basit validasyon
+    if User.objects.filter(username=payload.username).exists() or User.objects.filter(email=payload.email).exists():
+        return JsonResponse({'detail': 'Kullanıcı adı veya e-posta zaten kullanımda.'}, status=400)
+
+    user = User.objects.create(
+        username=payload.username,
+        email=payload.email,
+        full_name=payload.full_name,
+        password=make_password(payload.password),
+        role='customer',
+        is_active=True
+    )
+
+    return {'success': True, 'id': user.id}
+
+
+class FirmRegisterIn(Schema):
+    # Yönetici bilgileri
+    username: str
+    email: str
+    full_name: str
+    password: str
+
+    # Firma bilgileri
+    firm_name: str
+    tax_number: str = ''
+    legal_address: str = ''
+    phone_number: str = ''
+    location: str = ''
+    working_hours: str = ''
+    iban: str = ''
+
+
+@router.post('/firm/register', tags=['Kayıt'], auth=None)
+def register_firm_and_user(request: HttpRequest, payload: FirmRegisterIn):
+    """Firma ve yönetici hesabı oluşturur. Basit, tek transaction içinde."""
+    if User.objects.filter(username=payload.username).exists() or User.objects.filter(email=payload.email).exists():
+        return JsonResponse({'detail': 'Kullanıcı adı veya e-posta zaten kullanımda.'}, status=400)
+
+    # Firma adı uniqueness kontrolü
+    if Firm.objects.filter(name=payload.firm_name).exists():
+        return JsonResponse({'detail': 'Bu firma adı zaten kayıtlı.'}, status=400)
+
+    try:
+        with transaction.atomic():
+            firm = Firm.objects.create(
+                name=payload.firm_name,
+                slug=slugify(payload.firm_name)[:50],
+                location=payload.location,
+                is_active=True
+            )
+
+            user = User.objects.create(
+                username=payload.username,
+                email=payload.email,
+                full_name=payload.full_name,
+                password=make_password(payload.password),
+                role='firm_manager',
+                is_active=True,
+                firm=firm,
+                is_firm_manager=True,
+            )
+
+    except Exception as e:
+        return JsonResponse({'detail': f'Kayıt sırasında hata oluştu: {str(e)}'}, status=400)
+
+    return {'success': True, 'firm_id': str(firm.id), 'user_id': user.id}
+
+
+# =======================================================
+# ADMIN ENDPOINTLER (Süperuser gerektirir)
+# =======================================================
+
+
+@router.get('/admin/referrals', tags=['Admin'])
+def admin_all_referrals(request: HttpRequest):
+    user = request.auth
+    if not getattr(user, 'is_superuser', False):
+        return JsonResponse({'detail': 'Süper kullanıcı yetkisi gereklidir.'}, status=403)
+
+    referrals = ReferralRequest.objects.select_related('requested_service', 'requested_service__company').order_by('-created_at')
+    return referrals
 
 
 # =======================================================
@@ -164,3 +302,6 @@ def request_action(request: HttpRequest, request_id: int, payload: RequestAction
 
 # Tüm fonksiyonlar tanımlandıktan sonra, core rotalarını /core prefix'i altına ekliyoruz.
 api.add_router("/core", router)
+
+# Firma yönetim router'ını core altında expose edelim (ör: /api/core/firm/management/...)
+api.add_router("/core/firm/management", firm_management_router)

@@ -1,154 +1,178 @@
 // frontend/src/apiClient.ts
 
-import { 
-    type IService, 
-    type IReferralRequestIn, 
-    type IReferralRequestOut, 
-    // YENİ TİP İMPORTLARI: Firm Yönetimi için eklenenler
-    type IUser, 
-    type FirmEmployeeCreatePayload, 
-    type FirmEmployeeUpdatePayload 
+import {
+    type IService,
+    type IReferralRequestIn,
+    type IReferralRequestOut,
+    type IUser,
+    type FirmEmployeeCreatePayload,
+    type FirmEmployeeUpdatePayload,
+    type IRegisterIn,
+    type IFirmRegisterIn
 } from './types/api';
-import { logout } from './authService'; 
+import { getAccessToken, logout } from './authService';
 
-// Backend'inizdeki Core router'ına yönlendirilen temel adres
-const API_BASE_URL = 'http://127.0.0.1:8000/api/core';
+// Django REST Framework (DRF) URL yapınıza göre güncelleyin
+// Örn: http://127.0.0.1:8000/api/v1
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
+export { API_BASE_URL }; // authService'in kullanması için export ediyoruz
 
 /**
  * Genel API çağrısı yapıcı fonksiyon
- * @param endpoint - API'deki yol (örn: 'services/search')
- * @param method - HTTP metodu (GET, POST, PUT, DELETE) - GÜNCELLENDİ
+ * @param endpoint - API'deki yol (örn: 'core/services/search' veya 'firm/management/users')
+ * @param method - HTTP metodu (GET, POST, PUT, DELETE)
  * @param data - POST, PUT veya DELETE ile gönderilecek veri
  * @param requiresAuth - JWT token'ı gerektirip gerektirmediği
- * @returns Sunucudan gelen veriyi döner
+ * @returns Sunucudan gelen veriyi döner (T tipinde)
  */
 async function callApi<T>(
     endpoint: string,
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE', // Method güncellendi
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     data: any = null,
-    requiresAuth: boolean = false 
+    requiresAuth: boolean = false
 ): Promise<T> {
-    
-    // Firma Yönetimi API'leri için farklı path kullanmalıyız.
-    // Eğer endpoint 'firm/management' ile başlıyorsa, API_BASE_URL'i kullanmayız.
-    const url = endpoint.startsWith('firm/management') || endpoint.startsWith('admin')
-        ? `http://127.0.0.1:8000/api/${endpoint}` // Firm/Admin router'ları doğrudan 'api' altında olduğu varsayılır
-        : `${API_BASE_URL}/${endpoint}`; // Diğerleri core router'ı altında
+
+    // Backend dökümantasyonunuza göre URL'i belirliyoruz (core, firm, users)
+    let url = `${API_BASE_URL}/${endpoint}`;
 
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
     };
 
-    // JWT KONTROLÜ VE EKLEME
+    // Yetkilendirme (JWT)
     if (requiresAuth) {
-        const token = localStorage.getItem('accessToken');
+        const token = getAccessToken();
         if (!token) {
-            throw new Error("Yetkilendirme token'ı bulunamadı. Lütfen giriş yapın.");
+            logout();
+            throw new Error('Yetkilendirme Gerekli (Token Yok)');
         }
-        headers['Authorization'] = `Bearer ${token}`; 
+        headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const options: RequestInit = {
+    const config: RequestInit = {
         method,
         headers,
-        // DELETE veya GET ise body göndermeye gerek yok
-        body: (data && method !== 'GET' && method !== 'DELETE') ? JSON.stringify(data) : undefined,
     };
 
-    try {
-        const response = await fetch(url, options);
+    if (data && method !== 'GET') {
+        config.body = JSON.stringify(data);
+    }
 
-        // YENİ: MERKEZİ HATA YÖNETİMİ
-        if (response.status === 401 || response.status === 403) {
-            // JWT süresi dolduysa veya yetki yoksa, kullanıcıyı çıkışa zorla
-            logout(); 
-             // Hata mesajını daha açıklayıcı fırlat
-            throw new Error(response.status === 403 ? "Erişim yetkiniz bulunmamaktadır." : "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.");
+    // GET isteği ve Query Parametreleri
+    if (method === 'GET' && data) {
+        const params = new URLSearchParams(data).toString();
+        url = `${url}?${params}`;
+    }
+
+
+    try {
+        const response = await fetch(url, config);
+
+        // JWT token'ının süresi dolduysa ve 401 hatası aldıysak
+        if (response.status === 401 && requiresAuth) {
+            // Opsiyonel: Token yenileme mekanizması burada eklenebilir. 
+            // Şimdilik sadece çıkış yapıyoruz.
+            logout();
+            throw new Error('Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.');
         }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Sunucu hatası' }));
-            throw new Error(errorData.detail || `API isteği başarısız oldu: ${response.status}`);
+            let errorDetail = 'Bilinmeyen bir hata oluştu.';
+            try {
+                // Hata detayını backend'den almaya çalış
+                const errorData = await response.json();
+                errorDetail = errorData.detail || errorData.message || errorData[Object.keys(errorData)[0]]?.[0] || `Sunucu Hatası: ${response.status}`;
+            } catch {
+                // JSON değilse varsayılan mesajı kullan
+                errorDetail = `API çağrısı başarısız oldu: ${response.statusText}`;
+            }
+            throw new Error(errorDetail);
         }
 
-        // 204 No Content (DELETE) veya boş yanıt durumunda null döndür
+        // DELETE veya 204 No Content durumları için boş obje dön
         if (response.status === 204 || response.headers.get('content-length') === '0') {
-            return null as T;
+            return {} as T;
         }
 
-        return response.json() as Promise<T>;
+        return await response.json() as T;
 
     } catch (error) {
-        console.error(`[API ERROR] ${method} ${url}`, error);
+        // Ağ hataları veya yukarıdaki throw edilen hatalar
         throw error;
     }
 }
 
-// =======================================================
-// 1. MÜŞTERİ İÇİN API FONKSİYONLARI
-// =======================================================
-
-export const searchServices = (query: string = '', location: string = ''): Promise<IService[]> => {
-    const params = new URLSearchParams();
-    if (query) params.append('query', query);
-    if (location) params.append('location', location);
-    
-    const endpoint = `services/search?${params.toString()}`;
-    return callApi<IService[]>(endpoint, 'GET');
-};
-
-export const createReferral = (payload: IReferralRequestIn): Promise<IReferralRequestOut> => {
-    return callApi<IReferralRequestOut>('referral/create', 'POST', payload);
-};
-
 
 // =======================================================
-// 2. YETKİLENDİRİLMİŞ (FİRMA) API FONKSİYONLARI
-// =======================================================
-
-export const fetchFirmReferrals = (): Promise<IReferralRequestOut[]> => {
-    return callApi<IReferralRequestOut[]>('firm/my-referrals', 'GET', null, true); 
-};
-
-export const handleReferralAction = (
-    requestId: number, 
-    action: 'accept' | 'reject'
-): Promise<{ success: boolean; message: string }> => {
-    
-    const payload = { action };
-
-    return callApi<{ success: boolean; message: string }>(
-        `company/request/${requestId}/action`, 
-        'POST', 
-        payload, 
-        true // JWT token gereklidir
-    );
-};
-
-
-// =======================================================
-// 3. YETKİLENDİRİLMİŞ (ADMİN) API FONKSİYONLARI
+// 1. GENEL / PUBLIC API FONKSİYONLARI
 // =======================================================
 
 /**
- * [SADECE ADMIN İÇİN] Sistemdeki tüm firma taleplerini çeker (GET /admin/all-referrals). JWT gereklidir.
+ * Hizmetleri arar (GET /core/services/search?query=...&location=...). Public erişim.
  */
-export const fetchAllReferrals = (): Promise<IReferralRequestOut[]> => {
-    // BURADA ENDPOINT AYARLANDI: api/admin/all-referrals
-    return callApi<IReferralRequestOut[]>('admin/all-referrals', 'GET', null, true); 
+export const searchServices = (query: string, location: string): Promise<IService[]> => {
+    // Backend: /api/core/services/search
+    return callApi<IService[]>('core/services/search', 'GET', { query, location }, false);
+};
+
+/**
+ * Yeni bir yönlendirme talebi oluşturur (POST /core/referrals). Public erişim.
+ */
+export const createReferral = (payload: IReferralRequestIn): Promise<IReferralRequestOut> => {
+    // Backend: /api/core/referral/create
+    return callApi<IReferralRequestOut>('core/referral/create', 'POST', payload, false);
+};
+
+/**
+ * Yeni bir müşteri hesabı oluşturur (POST /users/register). Public erişim.
+ */
+export const registerCustomer = (payload: IRegisterIn): Promise<{ success: boolean; error?: string }> => {
+    // Endpoint: api/core/users/register (is_firm=false olarak gönderilmeli)
+    // callApi throws on error; pages expect a result object with success property
+    return callApi<void>('core/users/register', 'POST', { ...payload, is_firm: false }, false)
+        .then(() => ({ success: true })) as unknown as Promise<any>;
+};
+
+/**
+ * Yeni bir firma ve yönetici hesabı oluşturur (POST /firm/register). Public erişim.
+ */
+export const registerFirmAndUser = (payload: IFirmRegisterIn): Promise<{ success: boolean; error?: string }> => {
+    // Endpoint: api/core/firm/register
+    return callApi<void>('core/firm/register', 'POST', payload, false)
+        .then(() => ({ success: true })) as unknown as Promise<any>;
 };
 
 
 // =======================================================
-// 4. FİRMA İÇİ KULLANICI YÖNETİMİ API FONKSİYONLARI (YENİ)
+// 2. FİRMA YÖNETİMİ API FONKSİYONLARI (JWT GEREKLİ)
+// =======================================================
+
+/**
+ * Firmaya ait tüm gelen talepleri listeler (GET /firm/referrals). JWT gereklidir.
+ */
+export const fetchFirmReferrals = (): Promise<IReferralRequestOut[]> => {
+    // Backend: /api/core/firm/my-referrals
+    return callApi<IReferralRequestOut[]>('core/firm/my-referrals', 'GET', null, true);
+};
+
+/**
+ * Gelen talebin durumunu günceller (POST /firm/referrals/{id}/action). JWT gereklidir.
+ */
+export const handleReferralAction = (id: number, action: 'accept' | 'reject'): Promise<any> => {
+    // Backend: /api/core/company/request/{id}/action
+    return callApi<any>(`core/company/request/${id}/action`, 'POST', { action }, true);
+};
+
+
+// 3. FİRMA KULLANICI YÖNETİMİ API FONKSİYONLARI (JWT ve IsFirmManager GEREKLİ)
 // =======================================================
 
 /**
  * Firmaya ait tüm çalışanları listeler (GET /firm/management/users). JWT ve IsFirmEmployee gereklidir.
  */
 export const fetchFirmEmployees = (): Promise<IUser[]> => {
-    // Endpoint: api/firm/management/users
-    return callApi<IUser[]>('firm/management/users', 'GET', null, true); 
+    // Endpoint: api/core/firm/management/users
+    return callApi<IUser[]>('core/firm/management/users', 'GET', null, true);
 };
 
 /**
@@ -156,7 +180,7 @@ export const fetchFirmEmployees = (): Promise<IUser[]> => {
  */
 export const createFirmEmployee = (payload: FirmEmployeeCreatePayload): Promise<IUser> => {
     // Endpoint: api/firm/management/users
-    return callApi<IUser>('firm/management/users', 'POST', payload, true);
+    return callApi<IUser>('core/firm/management/users', 'POST', payload, true);
 };
 
 /**
@@ -164,7 +188,7 @@ export const createFirmEmployee = (payload: FirmEmployeeCreatePayload): Promise<
  */
 export const updateFirmEmployeeRole = (userId: number, payload: FirmEmployeeUpdatePayload): Promise<IUser> => {
     // Endpoint: api/firm/management/users/{userId}
-    return callApi<IUser>(`firm/management/users/${userId}`, 'PUT', payload, true);
+    return callApi<IUser>(`core/firm/management/users/${userId}`, 'PUT', payload, true);
 };
 
 /**
@@ -172,6 +196,17 @@ export const updateFirmEmployeeRole = (userId: number, payload: FirmEmployeeUpda
  */
 export const deleteFirmEmployee = (userId: number): Promise<void> => {
     // Endpoint: api/firm/management/users/{userId}
-    // Silme işlemi 204 No Content döndürür, bu yüzden Promise<void> kullanılır.
-    return callApi<void>(`firm/management/users/${userId}`, 'DELETE', null, true);
+    return callApi<void>(`core/firm/management/users/${userId}`, 'DELETE', null, true);
+};
+
+// =======================================================
+// ADMIN / GLOBAL API FONKSİYONLARI
+// =======================================================
+
+/**
+ * Admin: Tüm sistemdeki talepleri çeker. (JWT gerektirir)
+ * Backend endpoint'inizi uygun şekilde güncelleyin (örn: admin/referrals veya core/referrals/all)
+ */
+export const fetchAllReferrals = (): Promise<IReferralRequestOut[]> => {
+    return callApi<IReferralRequestOut[]>('core/admin/referrals', 'GET', null, true);
 };
