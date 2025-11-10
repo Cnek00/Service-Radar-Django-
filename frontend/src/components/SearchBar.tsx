@@ -1,30 +1,34 @@
+// frontend/src/components/SearchBar.tsx
+
 import { useState, type FormEvent } from 'react';
 import { Search, MapPin } from 'lucide-react';
-import { searchServices } from '../apiClient';
-import type { IService } from '../types/api';
+// searchServices artık doğrudan burada çağrılmıyor, HomePage'e iletiyor
+// import type { IService } from '../types/api';
 
 interface SearchBarProps {
-  onSearchResults: (results: IService[]) => void;
+  // Arama verilerini ana bileşene iletir
+  onSearchSubmit: (query: string, location: string) => Promise<void>; 
 }
 
-export default function SearchBar({ onSearchResults }: SearchBarProps) {
+export default function SearchBar({ onSearchSubmit }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''); 
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    // En az bir alanın dolu olmasını zorlayabilirsiniz, ancak şimdilik boş aramaya izin veriyoruz.
+    
     setIsLoading(true);
     setError('');
 
     try {
-      const results = await searchServices(query, location);
-      onSearchResults(results);
+      // Veriyi ana bileşene iletiyoruz, API çağrısı HomePage'de yapılacak
+      await onSearchSubmit(query, location); 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Arama başarısız oldu';
+      const errorMessage = err instanceof Error ? err.message : 'Arama başlatılamadı';
       setError(errorMessage);
-      onSearchResults([]);
     } finally {
       setIsLoading(false);
     }

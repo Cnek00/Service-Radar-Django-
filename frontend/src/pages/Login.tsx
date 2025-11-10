@@ -1,3 +1,5 @@
+// frontend/src/pages/Login.tsx
+
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, type UserCredentials } from '../authService';
@@ -28,12 +30,13 @@ export default function Login() {
       const result = await login(credentials);
 
       if (result.success) {
+        // Oturum başarıyla kaydedildi, firma paneline yönlendir
         navigate('/firm-panel');
       } else {
         setError(result.error || 'Giriş başarısız oldu');
       }
     } catch (err) {
-      setError('Beklenmeyen bir hata oluştu');
+      setError('Beklenmeyen bir hata oluştu. Sunucunuz çalışıyor mu?');
     } finally {
       setIsLoading(false);
     }
@@ -41,18 +44,20 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="text-center mb-8">
-            <LogIn className="w-12 h-12 text-blue-500 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-gray-900">Giriş Yap</h2>
-            <p className="text-gray-600 mt-2">Firma panelinize erişin</p>
-          </div>
+      <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl border border-gray-100">
+        
+        <div className="text-center mb-8">
+            <h1 className="text-3xl font-extrabold text-gray-900 flex justify-center items-center space-x-2">
+                <LogIn className="w-7 h-7 text-blue-500" />
+                <span>Firma Girişi</span>
+            </h1>
+            <p className="text-gray-500 mt-2">Gelen talepleri yönetmek için giriş yapın.</p>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Kullanıcı Adı
+                Kullanıcı Adı (Email)
               </label>
               <input
                 type="text"
@@ -91,12 +96,18 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed inline-flex items-center justify-center space-x-2"
             >
-              {isLoading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+              {isLoading ? (
+                'Giriş Yapılıyor...'
+              ) : (
+                <>
+                  <LogIn className="w-5 h-5" />
+                  <span>Giriş Yap</span>
+                </>
+              )}
             </button>
-          </form>
-        </div>
+        </form>
       </div>
     </div>
   );

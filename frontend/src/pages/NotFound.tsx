@@ -1,3 +1,5 @@
+// frontend/src/pages/NotFound.tsx
+
 import { Link } from 'react-router-dom';
 import { Home, AlertCircle } from 'lucide-react';
 
@@ -19,7 +21,7 @@ export default function NotFound() {
 
         <Link
           to="/"
-          className="inline-flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+          className="inline-flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors shadow-lg"
         >
           <Home className="w-5 h-5" />
           <span>Ana Sayfaya Dön</span>

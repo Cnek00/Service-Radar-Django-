@@ -3,15 +3,14 @@
 import React, { useState } from 'react';
 import { type IReferralRequestIn, type IService } from '../types/api';
 import { createReferral } from '../apiClient';
+import { Send } from 'lucide-react';
 
-// Bileşenin alacağı prop'ların (özelliklerin) tipini tanımlıyoruz
 interface ReferralFormProps {
-    service: IService; // Hangi hizmet için talep gönderileceğini bilmek için
-    onSuccess: (message: string) => void; // Başarı durumunda App.tsx'e bildirim göndermek için
+    service: IService;
+    onSuccess: (message: string) => void;
 }
 
 const ReferralForm: React.FC<ReferralFormProps> = ({ service, onSuccess }) => {
-    // Form verilerini tutacak state
     const [formData, setFormData] = useState<IReferralRequestIn>({
         target_company_id: service.company.id,
         requested_service_id: service.id,
@@ -23,7 +22,6 @@ const ReferralForm: React.FC<ReferralFormProps> = ({ service, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-    // Form alanları değiştiğinde state'i güncelleme
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData({
             ...formData,
@@ -31,71 +29,87 @@ const ReferralForm: React.FC<ReferralFormProps> = ({ service, onSuccess }) => {
         });
     };
 
-    // Form gönderildiğinde
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setSubmissionError(null);
 
         try {
-            // API'ye POST isteğini gönderiyoruz
             await createReferral(formData);
             
-            // Başarılı olduğunda ana bileşene bildirim gönder
             onSuccess('Talebiniz başarıyla gönderildi! Firma sizinle iletişime geçecektir.');
 
-            // Formu sıfırla
-            setFormData({ ...formData, customer_name: '', customer_email: '', description: '' });
+            setFormData({ 
+                ...formData, 
+                customer_name: '', 
+                customer_email: '', 
+                description: '' 
+            });
 
-        } catch (error) {
-            // Hata oluştuğunda mesajı göster
-            setSubmissionError('Talep gönderilirken bir hata oluştu. Lütfen tekrar deneyin.');
-            console.error(error);
+        } catch (error: any) {
+            const message = error.message.includes('400') ? 'Lütfen tüm alanları doğru doldurunuz.' : 'Talep gönderilirken bir hata oluştu.';
+            setSubmissionError(message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit} style={{ border: '1px solid #ddd', padding: '15px', marginTop: '10px' }}>
-            <h4>{service.company.name} firmasına talep gönder</h4>
-            {submissionError && <p style={{ color: 'red' }}>{submissionError}</p>}
+        <form onSubmit={handleSubmit} className="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-lg space-y-3">
+            <h4 className="text-lg font-semibold text-blue-700">
+                {service.company.name} firmasına talep gönder
+            </h4>
+            
+            {submissionError && (
+                <p className="p-2 bg-red-100 text-red-700 rounded text-sm">{submissionError}</p>
+            )}
 
             <div>
-                <label>Adınız:</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Adınız:</label>
                 <input
                     type="text"
                     name="customer_name"
                     value={formData.customer_name}
                     onChange={handleChange}
                     required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                 />
             </div>
             
-            <div style={{ marginTop: '10px' }}>
-                <label>E-posta Adresiniz:</label>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-posta Adresiniz:</label>
                 <input
                     type="email"
                     name="customer_email"
                     value={formData.customer_email}
                     onChange={handleChange}
                     required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                 />
             </div>
             
-            <div style={{ marginTop: '10px' }}>
-                <label>Açıklama/Detaylar:</label>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Açıklama/Detaylar:</label>
                 <textarea
                     name="description"
-                    rows={4}
+                    rows={3}
                     value={formData.description}
                     onChange={handleChange}
                     required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                 />
             </div>
             
-            <button type="submit" disabled={loading} style={{ marginTop: '15px' }}>
-                {loading ? 'Gönderiliyor...' : 'Hizmet Talebi Gönder'}
+            <button 
+                type="submit" 
+                disabled={loading} 
+                className="w-full inline-flex justify-center items-center py-2 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+            >
+                {loading ? 'Gönderiliyor...' : (
+                    <>
+                        <Send className="w-5 h-5 mr-2" /> Hizmet Talebi Gönder
+                    </>
+                )}
             </button>
         </form>
     );

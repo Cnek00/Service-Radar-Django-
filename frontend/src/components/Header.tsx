@@ -1,62 +1,55 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { isAuthenticated, logout } from '../authService';
-import { LogOut, Home, Building2 } from 'lucide-react';
+// frontend/src/components/Header.tsx
 
-export default function Header() {
-  const navigate = useNavigate();
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth'; // YENİ HOOK'UMUZ
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+const Header: React.FC = () => {
+    // Hook'u kullanarak durumu ve fonksiyonu alıyoruz
+    const { isAuthenticated: loggedIn, logout } = useAuth();
 
-  return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2 text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
-              <Building2 className="w-8 h-8" />
-              <span>Service Radar</span>
-            </Link>
-          </div>
+    return (
+        <header className="bg-gray-800 text-white p-4 shadow-md sticky top-0 z-40">
+            <div className="container mx-auto flex justify-between items-center">
+                
+                <Link to="/" className="text-2xl font-bold hover:text-gray-300 transition duration-300">
+                    Service Radar
+                </Link>
+                
+                <nav className="flex items-center space-x-6">
+                    <Link 
+                        to="/" 
+                        className="hover:text-gray-300 transition duration-300"
+                    >
+                        Anasayfa
+                    </Link>
+                    
+                    <Link 
+                        to="/firm-panel" 
+                        className={`${loggedIn ? 'text-yellow-400 font-semibold' : 'hover:text-gray-300'} transition duration-300`}
+                    >
+                        Firma Paneli
+                    </Link>
 
-          <nav className="flex items-center space-x-6">
-            <Link
-              to="/"
-              className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors font-medium"
-            >
-              <Home className="w-5 h-5" />
-              <span>Anasayfa</span>
-            </Link>
+                    {loggedIn ? (
+                        <button
+                            onClick={logout} // Hook'tan gelen logout fonksiyonu
+                            className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
+                        >
+                            Çıkış Yap
+                        </button>
+                    ) : (
+                        <Link 
+                            to="/login" 
+                            className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
+                        >
+                            Giriş Yap
+                        </Link>
+                    )}
+                </nav>
+            </div>
+        </header>
+    );
+};
 
-            <Link
-              to="/firm-panel"
-              className="flex items-center space-x-1 text-gray-700 hover:text-blue-600 transition-colors font-medium"
-            >
-              <Building2 className="w-5 h-5" />
-              <span>Firma Paneli</span>
-            </Link>
-
-            {isAuthenticated() ? (
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors font-medium"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Çıkış Yap</span>
-              </button>
-            ) : (
-              <Link
-                to="/login"
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors font-medium"
-              >
-                Giriş Yap
-              </Link>
-            )}
-          </nav>
-        </div>
-      </div>
-    </header>
-  );
-}
+export default Header;

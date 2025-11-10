@@ -1,16 +1,14 @@
+// frontend/src/pages/FirmPanel.tsx
+
 import { useState, useEffect } from 'react';
 import { type IReferralRequestOut } from '../types/api';
-import { CheckCircle, XCircle, Clock, Building2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Building2, User, Mail, Zap, Calendar } from 'lucide-react';
 import { fetchFirmReferrals, handleReferralAction } from '../apiClient';
 
 export default function FirmPanel() {
     const [referrals, setReferrals] = useState<IReferralRequestOut[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-
-    useEffect(() => {
-        loadReferrals();
-    }, []);
 
     const loadReferrals = async () => {
         try {
@@ -19,143 +17,122 @@ export default function FirmPanel() {
             setReferrals(data);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Veriler yüklenemedi';
+            // JWT süresi dolarsa kullanıcıyı login'e yönlendirmek için özel kontrol eklenebilir.
             setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
     };
 
+    useEffect(() => {
+        loadReferrals();
+    }, []);
+
     const handleStatusUpdate = async (id: number, status: 'accept' | 'reject') => {
         try {
+            // Butonları geçici olarak devre dışı bırakmak için state eklenebilir
             await handleReferralAction(id, status);
-            await loadReferrals();
+            // Başarılı olursa listeyi yeniden yükle
+            await loadReferrals(); 
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Durum güncellenemedi';
             setError(errorMessage);
         }
     };
 
+    const getStatusColor = (status: 'pending' | 'accepted' | 'rejected') => {
+        switch (status) {
+            case 'pending': return 'bg-yellow-100 text-yellow-800';
+            case 'accepted': return 'bg-green-100 text-green-800';
+            case 'rejected': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Yükleniyor...</p>
-                </div>
+            <div className="min-h-[500px] flex items-center justify-center">
+                <div className="text-xl font-semibold text-blue-600">Talepler Yükleniyor...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
-            <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <div className="flex items-center space-x-3 mb-2">
-                        <Building2 className="w-8 h-8 text-blue-500" />
-                        <h1 className="text-3xl font-bold text-gray-900">Firma Paneli</h1>
-                    </div>
-                    <p className="text-gray-600">Gelen referans taleplerini yönetin</p>
-                </div>
+        <div className="min-h-screen bg-gray-50 py-10">
+            <div className="max-w-7xl mx-auto px-4">
+                <h1 className="text-3xl font-bold text-gray-900 mb-8 border-b pb-2">Firma Paneli - Gelen Talepler</h1>
 
                 {error && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                        {error}
+                    <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                        Hata: {error}
                     </div>
                 )}
 
                 {referrals.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow p-12 text-center">
-                        <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 text-lg">Henüz referans talebi bulunmamaktadır.</p>
+                    <div className="p-10 text-center bg-white rounded-lg shadow-md">
+                        <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-xl text-gray-600">Henüz size ulaşan bir talep bulunmamaktadır.</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-lg shadow overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Hizmet ID
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Telefon
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            E-posta
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Notlar
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Durum
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Tarih
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            İşlemler
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {referrals.map((referral) => (
-                                        <tr key={referral.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                #{referral.service}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {referral.user_phone}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {referral.user_email}
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                                                {referral.notes || '-'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span
-                                                    className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${referral.status === 'accepted'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : referral.status === 'rejected'
-                                                            ? 'bg-red-100 text-red-800'
-                                                            : 'bg-yellow-100 text-yellow-800'
-                                                        }`}
-                                                >
-                                                    {referral.status === 'accepted'
-                                                        ? 'Kabul Edildi'
-                                                        : referral.status === 'rejected'
-                                                            ? 'Reddedildi'
-                                                            : 'Beklemede'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(referral.created_at).toLocaleDateString('tr-TR')}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                {referral.status === 'pending' && (
-                                                    <div className="flex space-x-2">
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(referral.id, 'accept')}
-                                                            className="inline-flex items-center px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors"
-                                                        >
-                                                            <CheckCircle className="w-4 h-4 mr-1" />
-                                                            Kabul Et
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(referral.id, 'reject')}
-                                                            className="inline-flex items-center px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors"
-                                                        >
-                                                            <XCircle className="w-4 h-4 mr-1" />
-                                                            Reddet
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div className="space-y-6">
+                        {referrals.map((referral) => (
+                            <div key={referral.id} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                                <div className="flex justify-between items-start mb-4 border-b pb-3">
+                                    <div>
+                                        <div className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(referral.status)}`}>
+                                            <Clock className="w-4 h-4 mr-1" />
+                                            {referral.status === 'pending' && 'BEKLEYEN TALEP'}
+                                            {referral.status === 'accepted' && 'KABUL EDİLDİ'}
+                                            {referral.status === 'rejected' && 'REDDEDİLDİ'}
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-gray-500 flex items-center space-x-1">
+                                        <Calendar className="w-4 h-4" />
+                                        <span>{new Date(referral.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                    <div className="flex items-center space-x-2 text-gray-800">
+                                        <User className="w-5 h-5 text-blue-500" />
+                                        <span className="font-semibold">{referral.customer_name}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-gray-600">
+                                        <Mail className="w-5 h-5 text-blue-500" />
+                                        <span className="truncate">{referral.customer_email}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-gray-600">
+                                        <Building2 className="w-5 h-5 text-blue-500" />
+                                        <span className="font-medium">{referral.requested_service.title}</span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                    <h4 className="font-semibold text-gray-700 mb-1">Talep Detayı:</h4>
+                                    <p className="text-gray-600 text-sm">{referral.description}</p>
+                                </div>
+
+                                {/* Aksiyon Butonları */}
+                                {referral.status === 'pending' && (
+                                    <div className="mt-6 flex space-x-3 justify-end">
+                                        <button
+                                            onClick={() => handleStatusUpdate(referral.id, 'accept')}
+                                            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors shadow-md"
+                                        >
+                                            <CheckCircle className="w-5 h-5 mr-2" />
+                                            Kabul Et
+                                        </button>
+                                        <button
+                                            onClick={() => handleStatusUpdate(referral.id, 'reject')}
+                                            className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors shadow-md"
+                                        >
+                                            <XCircle className="w-5 h-5 mr-2" />
+                                            Reddet
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

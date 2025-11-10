@@ -43,6 +43,7 @@ export interface IReferralRequestIn {
 // 4. Referral Request Output (Talep Çıkışı - 201 Created yanıtı)
 // created_at alanını backend'de datetime olarak ayarladığımız için burada string olarak alıyoruz (ISO formatı)
 export interface IReferralRequestOut {
+    description: ReactNode;
     user_phone: ReactNode;
     user_email: ReactNode;
     notes: string;
