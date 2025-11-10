@@ -1,140 +1,91 @@
-// frontend/src/pages/FirmPanel.tsx
+// frontend/src/pages/FirmPanel.tsx (GÜNCEL LAYOUT BİLEŞENİ)
 
-import { useState, useEffect } from 'react';
-import { type IReferralRequestOut } from '../types/api';
-import { CheckCircle, XCircle, Clock, Building2, User, Mail, Zap, Calendar } from 'lucide-react';
-import { fetchFirmReferrals, handleReferralAction } from '../apiClient';
+import React from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Clock, Users, Building2, ChevronLeft } from 'lucide-react';
+
+// Sekmelerin tanımı
+interface Tab {
+    path: string;
+    label: string;
+    icon: React.ElementType;
+    managerOnly: boolean; // Sadece yöneticilerin görmesi gereken sekmeler
+}
+
+const tabs: Tab[] = [
+    {
+        path: 'requests',
+        label: 'Gelen Talepler',
+        icon: Clock,
+        managerOnly: false,
+    },
+    {
+        path: 'users',
+        label: 'Kullanıcı Yönetimi',
+        icon: Users,
+        managerOnly: true, // Sadece Firma Yöneticisi görecek
+    },
+];
 
 export default function FirmPanel() {
-    const [referrals, setReferrals] = useState<IReferralRequestOut[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
+    const { isAuthenticated, isCompanyManager } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
 
-    const loadReferrals = async () => {
-        try {
-            setIsLoading(true);
-            const data = await fetchFirmReferrals();
-            setReferrals(data);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Veriler yüklenemedi';
-            // JWT süresi dolarsa kullanıcıyı login'e yönlendirmek için özel kontrol eklenebilir.
-            setError(errorMessage);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadReferrals();
-    }, []);
-
-    const handleStatusUpdate = async (id: number, status: 'accept' | 'reject') => {
-        try {
-            // Butonları geçici olarak devre dışı bırakmak için state eklenebilir
-            await handleReferralAction(id, status);
-            // Başarılı olursa listeyi yeniden yükle
-            await loadReferrals(); 
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Durum güncellenemedi';
-            setError(errorMessage);
-        }
-    };
-
-    const getStatusColor = (status: 'pending' | 'accepted' | 'rejected') => {
-        switch (status) {
-            case 'pending': return 'bg-yellow-100 text-yellow-800';
-            case 'accepted': return 'bg-green-100 text-green-800';
-            case 'rejected': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    if (isLoading) {
-        return (
-            <div className="min-h-[500px] flex items-center justify-center">
-                <div className="text-xl font-semibold text-blue-600">Talepler Yükleniyor...</div>
-            </div>
-        );
+    // Yetki kontrolü (Daha önce ProtectedRoute tarafından yapılmış olsa da, navigasyon için gerekli)
+    if (!isAuthenticated) {
+        navigate('/login'); 
+        return null;
     }
+
+    // Aktif sekmeyi belirlemek için URL'in son parçasını alırız.
+    const currentPath = location.pathname.split('/').pop() || 'requests';
 
     return (
         <div className="min-h-screen bg-gray-50 py-10">
             <div className="max-w-7xl mx-auto px-4">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8 border-b pb-2">Firma Paneli - Gelen Talepler</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-6 flex items-center border-b pb-2">
+                    <Building2 className="w-7 h-7 mr-3 text-blue-600" />
+                    Firma Yönetim Paneli
+                </h1>
 
-                {error && (
-                    <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                        Hata: {error}
-                    </div>
-                )}
-
-                {referrals.length === 0 ? (
-                    <div className="p-10 text-center bg-white rounded-lg shadow-md">
-                        <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-xl text-gray-600">Henüz size ulaşan bir talep bulunmamaktadır.</p>
-                    </div>
-                ) : (
-                    <div className="space-y-6">
-                        {referrals.map((referral) => (
-                            <div key={referral.id} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                                <div className="flex justify-between items-start mb-4 border-b pb-3">
-                                    <div>
-                                        <div className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(referral.status)}`}>
-                                            <Clock className="w-4 h-4 mr-1" />
-                                            {referral.status === 'pending' && 'BEKLEYEN TALEP'}
-                                            {referral.status === 'accepted' && 'KABUL EDİLDİ'}
-                                            {referral.status === 'rejected' && 'REDDEDİLDİ'}
-                                        </div>
-                                    </div>
-                                    <div className="text-sm text-gray-500 flex items-center space-x-1">
-                                        <Calendar className="w-4 h-4" />
-                                        <span>{new Date(referral.created_at).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                    <div className="flex items-center space-x-2 text-gray-800">
-                                        <User className="w-5 h-5 text-blue-500" />
-                                        <span className="font-semibold">{referral.customer_name}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2 text-gray-600">
-                                        <Mail className="w-5 h-5 text-blue-500" />
-                                        <span className="truncate">{referral.customer_email}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2 text-gray-600">
-                                        <Building2 className="w-5 h-5 text-blue-500" />
-                                        <span className="font-medium">{referral.requested_service.title}</span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                    <h4 className="font-semibold text-gray-700 mb-1">Talep Detayı:</h4>
-                                    <p className="text-gray-600 text-sm">{referral.description}</p>
-                                </div>
-
-                                {/* Aksiyon Butonları */}
-                                {referral.status === 'pending' && (
-                                    <div className="mt-6 flex space-x-3 justify-end">
-                                        <button
-                                            onClick={() => handleStatusUpdate(referral.id, 'accept')}
-                                            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors shadow-md"
-                                        >
-                                            <CheckCircle className="w-5 h-5 mr-2" />
-                                            Kabul Et
-                                        </button>
-                                        <button
-                                            onClick={() => handleStatusUpdate(referral.id, 'reject')}
-                                            className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors shadow-md"
-                                        >
-                                            <XCircle className="w-5 h-5 mr-2" />
-                                            Reddet
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                {/* Sekme Navigasyonu */}
+                <div className="flex border-b border-gray-200 mb-8">
+                    {tabs
+                        // isCompanyManager kontrolü ile sadece yetkili sekmeleri filtrele
+                        .filter(tab => !tab.managerOnly || isCompanyManager) 
+                        .map((tab) => (
+                            <Link
+                                key={tab.path}
+                                to={tab.path}
+                                className={`
+                                    flex items-center px-4 py-2 text-sm font-medium transition-colors duration-200
+                                    ${currentPath === tab.path || (currentPath === 'firm-panel' && tab.path === 'requests') // Default request sayfasını aktif kabul et
+                                        ? 'border-b-2 border-blue-600 text-blue-600'
+                                        : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }
+                                `}
+                            >
+                                <tab.icon className="w-5 h-5 mr-2" />
+                                {tab.label}
+                            </Link>
                         ))}
-                    </div>
-                )}
+                </div>
+
+                {/* Sekme İçeriği */}
+                <div className="bg-white p-6 rounded-xl shadow-lg">
+                    {/* Alt rotaların içeriği burada gösterilir (ReferralList veya FirmUserManagement) */}
+                    <Outlet /> 
+                </div>
+                
+                {/* Ana sayfaya dön butonu */}
+                <div className="mt-8">
+                     <Link to="/" className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
+                         <ChevronLeft className="w-5 h-5 mr-1" />
+                         Ana Sayfaya Dön
+                     </Link>
+                 </div>
             </div>
         </div>
     );

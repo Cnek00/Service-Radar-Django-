@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     
     # my apps
     'core',
+    'firm',
+    'users',
 ]
 
 # =======================================================
@@ -266,3 +268,4 @@ Q_CLUSTER = {
         # },
     ]
 }
+AUTH_USER_MODEL = 'users.User'

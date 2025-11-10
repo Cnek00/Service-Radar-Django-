@@ -51,3 +51,16 @@ class ReferralRequestOut(Schema):
 class RequestActionIn(Schema):
     # Aksiyon sadece 'accept' veya 'reject' olabilir
     action: Literal["accept", "reject"]
+    
+    # users/schemas.py (veya API şemalarınızın bulunduğu dosya)
+
+from ninja import Schema
+# ... diğer import'lar ...
+
+class TokenSchema(Schema):
+    # Mevcut alanlar
+    access: str
+    refresh: str
+    
+    # YENİ KRİTİK ALAN
+    is_superuser: bool

@@ -1,27 +1,40 @@
 // frontend/src/apiClient.ts
 
-import { type IService, type IReferralRequestIn, type IReferralRequestOut } from './types/api';
+import { 
+    type IService, 
+    type IReferralRequestIn, 
+    type IReferralRequestOut, 
+    // YENİ TİP İMPORTLARI: Firm Yönetimi için eklenenler
+    type IUser, 
+    type FirmEmployeeCreatePayload, 
+    type FirmEmployeeUpdatePayload 
+} from './types/api';
+import { logout } from './authService'; 
 
-// Django API'mizin temel adresi. CORS ayarlarını yaptığımız için sorunsuz çalışacaktır.
+// Backend'inizdeki Core router'ına yönlendirilen temel adres
 const API_BASE_URL = 'http://127.0.0.1:8000/api/core';
 
 /**
  * Genel API çağrısı yapıcı fonksiyon
  * @param endpoint - API'deki yol (örn: 'services/search')
- * @param method - HTTP metodu (GET, POST)
- * @param data - POST veya PUT ile gönderilecek veri
- * @param requiresAuth - JWT token'ı gerektirip gerektirmediği (Varsayılan: false) <-- YENİ PARAMETRE
+ * @param method - HTTP metodu (GET, POST, PUT, DELETE) - GÜNCELLENDİ
+ * @param data - POST, PUT veya DELETE ile gönderilecek veri
+ * @param requiresAuth - JWT token'ı gerektirip gerektirmediği
  * @returns Sunucudan gelen veriyi döner
  */
 async function callApi<T>(
     endpoint: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE', // Method güncellendi
     data: any = null,
-    requiresAuth: boolean = false // <-- Varsayılan olarak false
+    requiresAuth: boolean = false 
 ): Promise<T> {
-    const url = `${API_BASE_URL}/${endpoint}`;
     
-    // Headers (Başlıklar)
+    // Firma Yönetimi API'leri için farklı path kullanmalıyız.
+    // Eğer endpoint 'firm/management' ile başlıyorsa, API_BASE_URL'i kullanmayız.
+    const url = endpoint.startsWith('firm/management') || endpoint.startsWith('admin')
+        ? `http://127.0.0.1:8000/api/${endpoint}` // Firm/Admin router'ları doğrudan 'api' altında olduğu varsayılır
+        : `${API_BASE_URL}/${endpoint}`; // Diğerleri core router'ı altında
+
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
     };
@@ -30,42 +43,43 @@ async function callApi<T>(
     if (requiresAuth) {
         const token = localStorage.getItem('accessToken');
         if (!token) {
-            // Token yoksa ve yetkilendirme gerekiyorsa hata fırlat
             throw new Error("Yetkilendirme token'ı bulunamadı. Lütfen giriş yapın.");
         }
-        // Authorization başlığını ekle
-        headers['Authorization'] = `Bearer ${token}`; // <-- Authorization başlığı eklendi
+        headers['Authorization'] = `Bearer ${token}`; 
     }
 
-    // Ayarlar (options)
     const options: RequestInit = {
         method,
         headers,
-        // POST isteklerinde Body'yi ekliyoruz
-        body: data ? JSON.stringify(data) : undefined,
+        // DELETE veya GET ise body göndermeye gerek yok
+        body: (data && method !== 'GET' && method !== 'DELETE') ? JSON.stringify(data) : undefined,
     };
 
     try {
         const response = await fetch(url, options);
 
+        // YENİ: MERKEZİ HATA YÖNETİMİ
+        if (response.status === 401 || response.status === 403) {
+            // JWT süresi dolduysa veya yetki yoksa, kullanıcıyı çıkışa zorla
+            logout(); 
+             // Hata mesajını daha açıklayıcı fırlat
+            throw new Error(response.status === 403 ? "Erişim yetkiniz bulunmamaktadır." : "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.");
+        }
+
         if (!response.ok) {
-            // Sunucu 4xx veya 5xx kodu döndürdüyse
             const errorData = await response.json().catch(() => ({ detail: 'Sunucu hatası' }));
-            // Hata mesajını daha anlaşılır fırlat
             throw new Error(errorData.detail || `API isteği başarısız oldu: ${response.status}`);
         }
 
-        // Cevap body'si boşsa (örn: 204 No Content), null dön
+        // 204 No Content (DELETE) veya boş yanıt durumunda null döndür
         if (response.status === 204 || response.headers.get('content-length') === '0') {
             return null as T;
         }
 
-        // JSON verisini al
         return response.json() as Promise<T>;
 
     } catch (error) {
         console.error(`[API ERROR] ${method} ${url}`, error);
-        // Hatanın çağrı yapan bileşen tarafından yakalanabilmesi için yeniden fırlatıyoruz.
         throw error;
     }
 }
@@ -74,27 +88,16 @@ async function callApi<T>(
 // 1. MÜŞTERİ İÇİN API FONKSİYONLARI
 // =======================================================
 
-/**
- * Hizmetleri arar (GET /services/search).
- * @param query - Arama kelimesi (örn: 'tamir')
- * @param location - Konum (örn: 'İstanbul')
- */
 export const searchServices = (query: string = '', location: string = ''): Promise<IService[]> => {
     const params = new URLSearchParams();
     if (query) params.append('query', query);
     if (location) params.append('location', location);
     
     const endpoint = `services/search?${params.toString()}`;
-    // Müşteri rotaları JWT gerektirmez, bu yüzden 4. parametre atlanır (false varsayılır)
     return callApi<IService[]>(endpoint, 'GET');
 };
 
-/**
- * Yeni bir hizmet talebi oluşturur (POST /referral/create).
- * @param payload - Gönderilecek talep verisi
- */
 export const createReferral = (payload: IReferralRequestIn): Promise<IReferralRequestOut> => {
-    // Müşteri rotaları JWT gerektirmez, bu yüzden 4. parametre atlanır (false varsayılır)
     return callApi<IReferralRequestOut>('referral/create', 'POST', payload);
 };
 
@@ -103,19 +106,10 @@ export const createReferral = (payload: IReferralRequestIn): Promise<IReferralRe
 // 2. YETKİLENDİRİLMİŞ (FİRMA) API FONKSİYONLARI
 // =======================================================
 
-/**
- * Firmaya ait tüm talepleri listeler (GET /firm/my-referrals). JWT gereklidir.
- */
 export const fetchFirmReferrals = (): Promise<IReferralRequestOut[]> => {
-    // BURADA REQUIRESAUTH: TRUE GÖNDERİLİYOR
     return callApi<IReferralRequestOut[]>('firm/my-referrals', 'GET', null, true); 
 };
 
-/**
- * Bir talebi kabul veya red eder (POST /company/request/{id}/action). JWT gereklidir.
- * @param requestId - Talep ID'si
- * @param action - Kabul ('accept') veya Red ('reject')
- */
 export const handleReferralAction = (
     requestId: number, 
     action: 'accept' | 'reject'
@@ -123,11 +117,61 @@ export const handleReferralAction = (
     
     const payload = { action };
 
-    // BURADA REQUIRESAUTH: TRUE GÖNDERİLİYOR
     return callApi<{ success: boolean; message: string }>(
         `company/request/${requestId}/action`, 
         'POST', 
         payload, 
         true // JWT token gereklidir
     );
+};
+
+
+// =======================================================
+// 3. YETKİLENDİRİLMİŞ (ADMİN) API FONKSİYONLARI
+// =======================================================
+
+/**
+ * [SADECE ADMIN İÇİN] Sistemdeki tüm firma taleplerini çeker (GET /admin/all-referrals). JWT gereklidir.
+ */
+export const fetchAllReferrals = (): Promise<IReferralRequestOut[]> => {
+    // BURADA ENDPOINT AYARLANDI: api/admin/all-referrals
+    return callApi<IReferralRequestOut[]>('admin/all-referrals', 'GET', null, true); 
+};
+
+
+// =======================================================
+// 4. FİRMA İÇİ KULLANICI YÖNETİMİ API FONKSİYONLARI (YENİ)
+// =======================================================
+
+/**
+ * Firmaya ait tüm çalışanları listeler (GET /firm/management/users). JWT ve IsFirmEmployee gereklidir.
+ */
+export const fetchFirmEmployees = (): Promise<IUser[]> => {
+    // Endpoint: api/firm/management/users
+    return callApi<IUser[]>('firm/management/users', 'GET', null, true); 
+};
+
+/**
+ * Yeni bir firma çalışanı oluşturur (POST /firm/management/users). JWT ve IsFirmManager gereklidir.
+ */
+export const createFirmEmployee = (payload: FirmEmployeeCreatePayload): Promise<IUser> => {
+    // Endpoint: api/firm/management/users
+    return callApi<IUser>('firm/management/users', 'POST', payload, true);
+};
+
+/**
+ * Firma çalışanının yetkisini günceller (PUT /firm/management/users/{id}). JWT ve IsFirmManager gereklidir.
+ */
+export const updateFirmEmployeeRole = (userId: number, payload: FirmEmployeeUpdatePayload): Promise<IUser> => {
+    // Endpoint: api/firm/management/users/{userId}
+    return callApi<IUser>(`firm/management/users/${userId}`, 'PUT', payload, true);
+};
+
+/**
+ * Firma çalışanını siler (DELETE /firm/management/users/{id}). JWT ve IsFirmManager gereklidir.
+ */
+export const deleteFirmEmployee = (userId: number): Promise<void> => {
+    // Endpoint: api/firm/management/users/{userId}
+    // Silme işlemi 204 No Content döndürür, bu yüzden Promise<void> kullanılır.
+    return callApi<void>(`firm/management/users/${userId}`, 'DELETE', null, true);
 };

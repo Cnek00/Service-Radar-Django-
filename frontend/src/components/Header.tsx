@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth'; // YENİ HOOK'UMUZ
+// YENİ HOOK'UMUZ: Oturum ve Admin durumunu çeker
+import { useAuth } from '../hooks/useAuth'; 
 
 const Header: React.FC = () => {
-    // Hook'u kullanarak durumu ve fonksiyonu alıyoruz
-    const { isAuthenticated: loggedIn, logout } = useAuth();
+    // Hook'tan isSuperAdmin bilgisini çekiyoruz
+    const { isAuthenticated: loggedIn, isSuperAdmin, logout } = useAuth(); 
 
     return (
         <header className="bg-gray-800 text-white p-4 shadow-md sticky top-0 z-40">
@@ -24,6 +25,17 @@ const Header: React.FC = () => {
                         Anasayfa
                     </Link>
                     
+                    {/* YENİ: Admin Paneli Linki (Sadece Süper Adminler görür) */}
+                    {isSuperAdmin && (
+                        <Link 
+                            to="/admin-panel" 
+                            className="text-orange-400 font-bold hover:text-orange-300 transition duration-300 border border-orange-400 px-2 py-1 rounded-full text-sm"
+                        >
+                            ADMİN
+                        </Link>
+                    )}
+
+                    {/* Firma Paneli Linki */}
                     <Link 
                         to="/firm-panel" 
                         className={`${loggedIn ? 'text-yellow-400 font-semibold' : 'hover:text-gray-300'} transition duration-300`}
@@ -33,7 +45,7 @@ const Header: React.FC = () => {
 
                     {loggedIn ? (
                         <button
-                            onClick={logout} // Hook'tan gelen logout fonksiyonu
+                            onClick={logout} 
                             className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
                         >
                             Çıkış Yap

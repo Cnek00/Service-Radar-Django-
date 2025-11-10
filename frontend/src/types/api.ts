@@ -43,6 +43,7 @@ export interface IReferralRequestIn {
 // 4. Referral Request Output (Talep Çıkışı - 201 Created yanıtı)
 // created_at alanını backend'de datetime olarak ayarladığımız için burada string olarak alıyoruz (ISO formatı)
 export interface IReferralRequestOut {
+    target_company: any;
     description: ReactNode;
     user_phone: ReactNode;
     user_email: ReactNode;
@@ -55,4 +56,44 @@ export interface IReferralRequestOut {
     created_at: string; // ISO formatında tarih (Örn: "2025-11-06T18:20:00.000Z")
     requested_service: IService; // İlişkili hizmet objesi (ServiceSchema)
     commission_amount: number;
+}
+
+/**
+ * Backend'den gelen başarılı Login cevabı.
+ */
+export interface ILoginOut {
+    id(id: any): string;
+    full_name(FULL_NAME_KEY: string, full_name: any): unknown;
+    access: string;
+    refresh: string;
+    // YENİ EKLENEN KRİTİK ALAN
+    is_superuser: boolean; 
+    // Firmaların kendi içinde kullanıcı yönetimi için bunu da ekleyelim
+    is_firm_manager: boolean; 
+}
+
+
+// Firma Çalışanı/Kullanıcı Tipi (Backend UserSchema karşılığı)
+export interface IUser {
+    id: number;
+    username: string;
+    email: string;
+    full_name: string;
+    is_firm_manager: boolean; // Firma Yöneticisi mi?
+    role: string; // 'firm_employee' veya 'firm_manager'
+    // İsteğe bağlı olarak, kullanıcıya bağlı firma bilgileri (kullanılıyorsa)
+    // firm?: { name: string, ... };
+}
+
+// Yeni Çalışan Oluşturma Giriş Tipi (Backend FirmEmployeeCreateSchema karşılığı)
+export interface FirmEmployeeCreatePayload {
+    email: string;
+    username: string;
+    full_name: string;
+    password: string;
+}
+
+// Çalışan Yetki Güncelleme Giriş Tipi (Backend FirmEmployeeUpdateSchema karşılığı)
+export interface FirmEmployeeUpdatePayload {
+    is_firm_manager: boolean;
 }

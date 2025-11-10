@@ -7,6 +7,7 @@ from django.db.models import Q
 from core.models import Service, Company, ReferralRequest
 from core.api import ServiceSchema, ReferralRequestIn, ReferralRequestOut
 from django.http import HttpRequest, JsonResponse
+from firm.api import router as firm_management_router
 
 router = Router()
 
@@ -123,3 +124,6 @@ def request_action(request: HttpRequest, request_id: int, action: str):
     # NOT: Burada müşteriye durum güncellemesi ile ilgili bildirim gönderilmelidir.
     
     return {"success": True, "message": message}
+
+
+router.add_api_operation("/firm/management", firm_management_router)
