@@ -1,10 +1,28 @@
-// frontend/src/pages/AdminPanel.tsx
+// frontend/src/pages/AdminPanel.tsx (GÜNCEL: Button Bileşeni Entegre Edildi)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { type IReferralRequestOut } from '../types/api';
 // Yeni eklediğimiz admin fonksiyonunu import ediyoruz
 import { fetchAllReferrals, handleReferralAction } from '../apiClient';
-import { CheckCircle, XCircle, Clock, Building2, User, Mail, Zap, Calendar } from 'lucide-react';
+import { 
+    CheckCircle, XCircle, Clock, Building2, User, Mail, Zap, Calendar, Loader2, MessageSquare, Filter
+} from 'lucide-react';
+
+// YENİ BİLEŞENİ İMPORT ET
+import Button from '../components/Button';
+
+// Durum etiketi için yardımcı fonksiyon (Mevcut haliyle korundu)
+const getStatusBadge = (status: 'pending' | 'accepted' | 'rejected') => {
+    switch (status) {
+        case 'accepted':
+            return <span className="bg-green-100 text-green-800 text-xs font-semibold px-3 py-1 rounded-full inline-flex items-center"><CheckCircle className="w-3 h-3 mr-1" /> Kabul Edildi</span>;
+        case 'rejected':
+            return <span className="bg-red-100 text-red-800 text-xs font-semibold px-3 py-1 rounded-full inline-flex items-center"><XCircle className="w-3 h-3 mr-1" /> Reddedildi</span>;
+        case 'pending':
+        default:
+            return <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full inline-flex items-center"><Clock className="w-3 h-3 mr-1" /> Beklemede</span>;
+    }
+};
 
 export default function AdminPanel() {
     const [referrals, setReferrals] = useState<IReferralRequestOut[]>([]);
@@ -12,10 +30,13 @@ export default function AdminPanel() {
     const [error, setError] = useState('');
     const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
 
-    const loadReferrals = async () => {
+    // YENİ STATE: Hangi talebin işlendiğini tutar
+    const [updatingReferralId, setUpdatingReferralId] = useState<number | null>(null); 
+    
+    // Tüm talepleri yükleme fonksiyonu
+    const loadReferrals = useCallback(async () => {
         try {
             setIsLoading(true);
-            // Tüm sistemdeki talepleri çekmek için Admin API fonksiyonunu çağır
             const data = await fetchAllReferrals();
             // Tarihe göre ters sıralama (en yeni en üstte)
             const sortedData = data.sort((a: IReferralRequestOut, b: IReferralRequestOut) =>
@@ -28,145 +49,176 @@ export default function AdminPanel() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         loadReferrals();
-    }, []);
+    }, [loadReferrals]);
 
-    // Firma Paneli ile aynı aksiyon fonksiyonunu kullanır
-    const handleStatusUpdate = async (id: number, status: 'accept' | 'reject') => {
-        try {
-            await handleReferralAction(id, status);
-            // Başarılı olursa listeyi yeniden yükle
-            await loadReferrals();
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Durum güncellenemedi';
-            setError(errorMessage);
-        }
-    };
+    // handleStatusUpdate GÜNCELLENDİ: Loading durumunu yönetir
+    const handleStatusUpdate = useCallback(
+        async (referralId: number, action: 'accept' | 'reject') => {
+            // İşlem zaten yapılıyorsa durdur
+            if (updatingReferralId !== null) return; 
+            
+            setUpdatingReferralId(referralId); // İşlem yapılan talebin ID'sini kaydet
+            setError('');
 
-    const getStatusColor = (status: 'pending' | 'accepted' | 'rejected') => {
-        switch (status) {
-            case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-            case 'accepted': return 'bg-green-100 text-green-800 border-green-300';
-            case 'rejected': return 'bg-red-100 text-red-800 border-red-300';
-            default: return 'bg-gray-100 text-gray-800 border-gray-300';
-        }
-    };
+            try {
+                // API çağrısı
+                await handleReferralAction(referralId, action);
+                
+                // Başarılı olursa, tüm listeyi yeniden yükle
+                await loadReferrals(); 
 
-    const filteredReferrals = referrals.filter(r => filter === 'all' || r.status === filter);
-
-
-    if (isLoading) {
-        return (
-            <div className="min-h-[500px] flex items-center justify-center">
-                <div className="text-xl font-semibold text-blue-600">Tüm Sistem Talepleri Yükleniyor...</div>
-            </div>
-        );
-    }
-
-    // Hata durumunda (Örn: Admin yetkisi yoksa)
-    if (error && filteredReferrals.length === 0 && !isLoading) {
-        return (
-            <div className="min-h-[500px] flex items-center justify-center">
-                <div className="p-8 bg-red-50 border border-red-200 rounded-xl text-red-700 max-w-lg text-center">
-                    <Zap className="w-8 h-8 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold mb-2">Erişim Reddedildi</h2>
-                    <p>{error}</p>
-                    <p className="mt-4 text-sm">Bu panele erişim için Süper Yönetici (Admin) yetkisine sahip olmalısınız.</p>
-                </div>
-            </div>
-        );
-    }
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : 'Durum güncellenemedi';
+                setError(`Talep ${referralId} için işlem başarısız: ${errorMessage}`);
+            } finally {
+                setUpdatingReferralId(null); // İşlem bitince loading state'ini temizle
+            }
+        },
+        [loadReferrals, updatingReferralId]
+    );
+    
+    // Filtrelenmiş talepleri hesapla
+    const filteredReferrals = referrals.filter(referral => 
+        filter === 'all' || referral.status === filter
+    );
+    
+    // Filtre butonları için yardımcı fonksiyon
+    const getFilterButtonClass = (buttonFilter: typeof filter) => 
+        `px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            filter === buttonFilter 
+                ? 'bg-blue-600 text-white shadow-md' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+        }`;
 
     return (
-        <div className="min-h-screen bg-gray-50 py-10">
-            <div className="max-w-7xl mx-auto px-4">
-                <h1 className="text-3xl font-bold text-gray-900 mb-6 border-b pb-2">Admin: Tüm Sistem Talepleri Yönetimi</h1>
-
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+            <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-gray-900 mb-6 border-b pb-3 flex items-center">
+                    <Building2 className="w-7 h-7 mr-3 text-red-600" /> Admin Paneli: Tüm Sistem Talepleri
+                </h1>
+                
+                {/* Hata ve Yükleme Mesajları */}
+                {error && (
+                    <div className="p-4 mb-4 bg-red-100 border border-red-400 text-red-700 rounded-lg" role="alert">
+                        {error}
+                    </div>
+                )}
+                
                 {/* Filtreleme Butonları */}
-                <div className="flex space-x-3 mb-8">
-                    <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-full font-medium transition-colors ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border hover:bg-gray-100'}`}>
+                <div className="flex space-x-3 mb-6 items-center">
+                    <Filter className="w-5 h-5 text-gray-500" />
+                    <span className="text-gray-700 font-medium mr-2">Filtrele:</span>
+                    <button onClick={() => setFilter('all')} className={getFilterButtonClass('all')}>
                         Tümü ({referrals.length})
                     </button>
-                    <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-full font-medium transition-colors ${filter === 'pending' ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 border hover:bg-gray-100'}`}>
-                        Bekleyen ({referrals.filter(r => r.status === 'pending').length})
+                    <button onClick={() => setFilter('pending')} className={getFilterButtonClass('pending')}>
+                        Beklemede ({referrals.filter(r => r.status === 'pending').length})
                     </button>
-                    <button onClick={() => setFilter('accepted')} className={`px-4 py-2 rounded-full font-medium transition-colors ${filter === 'accepted' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 border hover:bg-gray-100'}`}>
-                        Kabul Edilen ({referrals.filter(r => r.status === 'accepted').length})
+                    <button onClick={() => setFilter('accepted')} className={getFilterButtonClass('accepted')}>
+                        Kabul Edilenler ({referrals.filter(r => r.status === 'accepted').length})
                     </button>
-                    <button onClick={() => setFilter('rejected')} className={`px-4 py-2 rounded-full font-medium transition-colors ${filter === 'rejected' ? 'bg-red-600 text-white' : 'bg-white text-gray-700 border hover:bg-gray-100'}`}>
-                        Reddedilen ({referrals.filter(r => r.status === 'rejected').length})
+                    <button onClick={() => setFilter('rejected')} className={getFilterButtonClass('rejected')}>
+                        Reddedilenler ({referrals.filter(r => r.status === 'rejected').length})
                     </button>
                 </div>
+                
 
-                {filteredReferrals.length === 0 ? (
-                    <div className="p-10 text-center bg-white rounded-lg shadow-md mt-12">
-                        <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-xl text-gray-600">Filtrenize uygun talep bulunmamaktadır.</p>
+                {isLoading ? (
+                    <div className="text-center py-10 text-gray-500 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                        Talepler Yükleniyor...
+                    </div>
+                ) : filteredReferrals.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500 bg-white rounded-lg shadow-md">
+                        <p className="text-lg">Gösterilecek hizmet talebi bulunmamaktadır.</p>
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        {filteredReferrals.map((referral) => (
-                            <div key={referral.id} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-                                <div className="flex justify-between items-start mb-4 border-b pb-3">
-                                    <div>
-                                        <div className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full border ${getStatusColor(referral.status)}`}>
-                                            <Clock className="w-4 h-4 mr-1" />
-                                            {referral.status === 'pending' && 'BEKLEYEN TALEP'}
-                                            {referral.status === 'accepted' && 'KABUL EDİLDİ'}
-                                            {referral.status === 'rejected' && 'REDDEDİLDİ'}
+                        {filteredReferrals.map((referral) => {
+                            // Yeni: Bu talep için yükleme yapılıyor mu?
+                            const isUpdating = updatingReferralId === referral.id; 
+                            
+                            return (
+                                <div 
+                                    key={referral.id} 
+                                    className={`bg-white p-6 rounded-xl shadow-lg border-l-4 
+                                        ${referral.status === 'pending' ? 'border-yellow-500' 
+                                            : referral.status === 'accepted' ? 'border-green-500' 
+                                            : 'border-red-500'}`
+                                    }
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h2 className="text-xl font-semibold text-gray-900">
+                                            {referral.requested_service.title}
+                                        </h2>
+                                        {getStatusBadge(referral.status)}
+                                    </div>
+    
+                                    {/* Talep Detayları */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700 mb-4">
+                                        <p className="flex items-center">
+                                            <Building2 className="w-4 h-4 mr-2 text-gray-500" />
+                                            Hedef Firma: <span className="font-medium ml-1">{referral.requested_service.company_name}</span>
+                                        </p>
+                                        <p className="flex items-center">
+                                            <Zap className="w-4 h-4 mr-2 text-gray-500" />
+                                            Komisyon Miktarı: <span className="font-medium ml-1 text-purple-600">{referral.commission_amount} TL (Komisyon)</span>
+                                        </p>
+                                        <p className="flex items-center">
+                                            <User className="w-4 h-4 mr-2 text-gray-500" />
+                                            Müşteri: <span className="font-medium ml-1">{referral.customer_name}</span>
+                                        </p>
+                                        <p className="flex items-center">
+                                            <Mail className="w-4 h-4 mr-2 text-gray-500" />
+                                            E-posta: <span className="font-medium ml-1">{referral.customer_email}</span>
+                                        </p>
+                                        <p className="flex items-center md:col-span-2">
+                                            <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                                            Talep Tarihi: <span className="font-medium ml-1">{new Date(referral.created_at).toLocaleString()}</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                        <div className="flex items-center text-gray-800 mb-2 font-medium">
+                                            <MessageSquare className="w-4 h-4 mr-2" />
+                                            Müşteri Notu:
                                         </div>
+                                        <p className="text-gray-600 text-sm italic">
+                                            {referral.description || 'Müşteri ek bir açıklama yapmamıştır.'}
+                                        </p>
                                     </div>
-                                    <div className="text-sm text-gray-500 flex items-center space-x-1">
-                                        <Calendar className="w-4 h-4" />
-                                        <span>{new Date(referral.created_at).toLocaleDateString()}</span>
-                                    </div>
+    
+                                    {/* Aksiyon Butonları - YENİ BUTTON BİLEŞENİ KULLANILDI */}
+                                    {referral.status === 'pending' && (
+                                        <div className="mt-6 flex space-x-3 justify-end">
+                                            {/* KABUL ET BUTONU */}
+                                            <Button
+                                                onClick={() => handleStatusUpdate(referral.id, 'accept')}
+                                                variant="success"
+                                                isLoading={isUpdating} // İlgili talep için loading göster
+                                                icon={CheckCircle}
+                                            >
+                                                Kabul Et (Firmaya İletildi)
+                                            </Button>
+                                            
+                                            {/* REDDET BUTONU */}
+                                            <Button
+                                                onClick={() => handleStatusUpdate(referral.id, 'reject')}
+                                                variant="danger"
+                                                isLoading={isUpdating} // İlgili talep için loading göster
+                                                icon={XCircle}
+                                            >
+                                                Reddet
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                    <div className="flex items-center space-x-2 text-gray-800">
-                                        <User className="w-5 h-5 text-blue-500" />
-                                        <span className="font-semibold">{referral.customer_name}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2 text-gray-600">
-                                        <Mail className="w-5 h-5 text-blue-500" />
-                                        <span className="truncate">{referral.customer_email}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-2 text-gray-600">
-                                        <Building2 className="w-5 h-5 text-blue-500" />
-                                        {/* Talep hangi firmaya ait, Admin'e bu bilgiyi göster */}
-                                        <span className="font-medium text-gray-900">{referral.target_company?.name ?? `Firma ID:${referral.target_company_id}`}</span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                    <h4 className="font-semibold text-gray-700 mb-1">Talep Detayı:</h4>
-                                    <p className="text-gray-600 text-sm">{referral.description}</p>
-                                </div>
-
-                                {/* Aksiyon Butonları (Admin bu aksiyonları yapabilir) */}
-                                {referral.status === 'pending' && (
-                                    <div className="mt-6 flex space-x-3 justify-end">
-                                        <button
-                                            onClick={() => handleStatusUpdate(referral.id, 'accept')}
-                                            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors shadow-md"
-                                        >
-                                            <CheckCircle className="w-5 h-5 mr-2" />
-                                            Kabul Et
-                                        </button>
-                                        <button
-                                            onClick={() => handleStatusUpdate(referral.id, 'reject')}
-                                            className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors shadow-md"
-                                        >
-                                            <XCircle className="w-5 h-5 mr-2" />
-                                            Reddet
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

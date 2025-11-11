@@ -1,11 +1,11 @@
-// frontend/src/pages/HomePage.tsx (GÜNCELLENMİŞ)
+// frontend/src/pages/HomePage.tsx (GÜNCELLENDİ: Hizmetler Izgara Düzeninde Gösteriliyor)
 
 import { useState } from 'react';
 import SearchBar from '../components/SearchBar';
 import { searchServices } from '../apiClient';
 import ServiceCard from '../components/ServiceCard';
-import ReferralForm from '../components/ReferralForm'; // Talep formunu import ediyoruz
-import Modal from '../components/Modal'; // YENİ: Modal bileşenini import ediyoruz
+import ReferralForm from '../components/ReferralForm'; 
+import Modal from '../components/Modal'; 
 import { type IService } from '../types/api';
 
 // onSuccess: App.tsx'den gelen ve başarılı mesajı gösteren fonksiyondur.
@@ -33,51 +33,50 @@ export default function HomePage({ onSuccess }: HomePageProps) {
         handleSearchResults(results);
     };
 
-    // ServiceCard'a tıklandığında modalı açar
+    // Card tıklandığında çalışır
     const handleCardClick = (service: IService) => {
         setSelectedService(service);
         setIsModalOpen(true);
     };
 
-    // Modal kapatma fonksiyonu
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setSelectedService(null); // Hafızayı temizliyoruz
+        setSelectedService(null);
+    };
+    
+    // Talep formu başarıyla gönderildiğinde çalışır
+    const handleReferralSuccess = (message: string) => {
+        onSuccess(message); // Ana bileşendeki (App.tsx'deki) onSuccess'i çağır
+        handleCloseModal(); // Modalı kapat
     };
 
-    // Talep başarıyla gönderildiğinde (ReferralForm'dan gelir)
-    const handleReferralSuccess = (message: string) => {
-        handleCloseModal(); // Modalı kapat
-        onSuccess(message); // App.tsx'e başarı mesajını gönderir
-    }
-
-
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="container mx-auto px-4 py-12">
-
-                <div className="text-center mb-10">
-                    <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
-                        Service Radar: Hizmetleri Keşfet
-                    </h1>
-                    <p className="text-lg text-gray-600">
-                        İhtiyacınız olan hizmeti bulun ve firmalarla iletişime geçin
-                    </p>
-                </div>
-
+        <div className="pt-8">
+            <div className="max-w-4xl mx-auto">
+                {/* Arama Çubuğu */}
                 <SearchBar onSearchSubmit={handleSearchSubmit} />
 
-                <div className="mt-12">
-                    {/* Arama Sonuçları Listesi */}
-                    {services.length > 0 && (
+                <div className="mt-10">
+                    {/* Başlangıç Mesajı */}
+                    {!hasSearched && (
+                        <div className="text-center py-12 bg-gray-100 rounded-xl shadow-inner">
+                            <h2 className="text-2xl font-semibold text-gray-800 mb-2">Hizmetleri Keşfet</h2>
+                            <p className="text-gray-600">Aradığınız hizmeti ve konumu girerek hemen arama yapın.</p>
+                        </div>
+                    )}
+
+                    {/* Arama Sonuçları */}
+                    {hasSearched && services.length > 0 && (
                         <>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                                Arama Sonuçları ({services.length})
+                            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">
+                                {services.length} Sonuç Bulundu
                             </h2>
+                            
+                            {/* BURASI GÜNCELLENDİ: Grid (Izgara) Düzeni */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {services.map((service) => (
-                                    <ServiceCard
-                                        key={service.id}
+                                    <ServiceCard 
+                                        key={service.id} 
                                         service={service}
                                         // Tıklama işlevi eklendi: Seçilen hizmeti state'e kaydeder ve modalı açar
                                         onClick={() => handleCardClick(service)}
@@ -89,9 +88,9 @@ export default function HomePage({ onSuccess }: HomePageProps) {
 
                     {/* Arama yapıldı ama sonuç yok */}
                     {hasSearched && services.length === 0 && (
-                        <div className="text-center py-12">
-                            <p className="text-gray-600 text-lg">
-                                Arama kriterlerinize uygun hizmet bulunamadı.
+                        <div className="text-center py-12 bg-white rounded-xl shadow-md border border-gray-200">
+                            <p className="text-gray-600 text-lg font-medium">
+                                Arama kriterlerinize uygun hizmet bulunamadı. Lütfen farklı anahtar kelimeler veya konumlar deneyin.
                             </p>
                         </div>
                     )}
@@ -99,14 +98,12 @@ export default function HomePage({ onSuccess }: HomePageProps) {
             </div>
 
             {/* REFERRAL FORM MODALI */}
-            {/* Sadece bir hizmet seçilmişse ve modal açık olmalıysa gösterir */}
             {selectedService && (
                 <Modal
                     isOpen={isModalOpen}
                     onClose={handleCloseModal}
                     title={`${selectedService.title} Hizmeti İçin Talep Oluştur`}
                 >
-                    {/* selectedService objesini ReferralForm'a iletiyoruz */}
                     <ReferralForm
                         service={selectedService}
                         onSuccess={handleReferralSuccess}

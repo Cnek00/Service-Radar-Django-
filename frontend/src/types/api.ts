@@ -166,3 +166,22 @@ export interface FirmEmployeeCreatePayload {
 export interface FirmEmployeeUpdatePayload {
     is_firm_manager: boolean;
 }
+
+// src/types/api.ts (Yeni Eklenecekler)
+
+// FİRMA HİZMET YÖNETİMİ TİPLERİ (Oluşturma ve Güncelleme için Ortak Payload)
+
+export interface IServicePayload {
+    title: string;
+    description: string;
+    // Fiyat aralığı bilgisi (örneğin "Pazarlığa Açık" veya "500-1000 TL")
+    price_range: string; 
+    price_range_min: number | null;
+    price_range_max: number | null;
+}
+
+// Oluşturma için (Firma ID'si JWT'den alınacak)
+export type IServiceCreateIn = IServicePayload;
+
+// Güncelleme için
+export type IServiceUpdateIn = IServicePayload;

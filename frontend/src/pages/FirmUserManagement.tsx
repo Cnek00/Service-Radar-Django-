@@ -1,6 +1,6 @@
-// frontend/src/pages/FirmUserManagement.tsx
+// frontend/src/pages/FirmUserManagement.tsx (GÜNCELLENDİ)
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, type FormEvent } from 'react';
 import {
     fetchFirmEmployees,
     createFirmEmployee,
@@ -8,9 +8,15 @@ import {
     deleteFirmEmployee
 } from '../apiClient';
 import { type IUser, type FirmEmployeeCreatePayload, type FirmEmployeeUpdatePayload } from '../types/api';
-import { useAuth } from '../hooks/useAuth'; // Yetki kontrolü için özel hook
-import { Users, UserPlus, Trash2, CheckCircle, XCircle, Loader2, Mail, User } from 'lucide-react';
-import Modal from '../components/Modal'; // Modal bileşenini kullanıyoruz
+import { useAuth } from '../hooks/useAuth'; 
+import { 
+    Users, UserPlus, Trash2, CheckCircle, XCircle, Loader2, Mail, User, Key, UserCheck, UserX 
+} from 'lucide-react';
+
+// YENİ BİLEŞENLERİ İMPORT ET
+import Modal from '../components/Modal'; 
+import Input from '../components/Input'; 
+import Button from '../components/Button'; 
 
 // Yeni çalışan oluşturma formu için başlangıç state'i
 const initialCreateFormData: FirmEmployeeCreatePayload = {
@@ -21,260 +27,338 @@ const initialCreateFormData: FirmEmployeeCreatePayload = {
 };
 
 // --------------------------------------------------------------------------------
+// YARDIMCI BİLEŞEN: YETKİ ROZETİ
+// --------------------------------------------------------------------------------
+
+const RoleBadge: React.FC<{ isManager: boolean }> = ({ isManager }) => {
+    return (
+        <span className={`px-3 py-1 text-xs font-semibold rounded-full flex items-center ${
+            isManager 
+                ? 'bg-purple-100 text-purple-800' 
+                : 'bg-blue-100 text-blue-800'
+        }`}>
+            {isManager ? <UserCheck className="w-3 h-3 mr-1" /> : <User className="w-3 h-3 mr-1" />}
+            {isManager ? 'Yönetici' : 'Standart Çalışan'}
+        </span>
+    );
+};
+
+// --------------------------------------------------------------------------------
 // ANA BİLEŞEN
 // --------------------------------------------------------------------------------
 
 export default function FirmUserManagement() {
-    // useAuth hook'u, mevcut kullanıcının id, isCompanyManager gibi bilgilerini sağlar
-    const { isAuthenticated, isCompanyManager, auth } = useAuth();
+    const { isCompanyManager, auth } = useAuth();
+    const currentUserId = auth.id; // Mevcut oturum açmış kullanıcının ID'si
 
     // Veri state'leri
     const [employees, setEmployees] = useState<IUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     // Modal ve Form state'leri
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createFormData, setCreateFormData] = useState<FirmEmployeeCreatePayload>(initialCreateFormData);
     const [isCreating, setIsCreating] = useState(false);
-    const [createError, setCreateError] = useState('');
+    
+    // YENİ STATE: Silme veya Yetki değiştirme işlemi için ID tutucusu
+    const [processingUserId, setProcessingUserId] = useState<number | null>(null);
 
-    // Kullanıcı listesini Backend'den çekme fonksiyonu
+    // Çalışanları yükleme fonksiyonu
     const loadEmployees = useCallback(async () => {
-        if (!isAuthenticated) return; // Giriş yapmadıysa yükleme
-
         try {
             setIsLoading(true);
             const data = await fetchFirmEmployees();
             setEmployees(data);
-            setError('');
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Çalışan listesi yüklenemedi';
+            const errorMessage = err instanceof Error ? err.message : 'Çalışanlar yüklenemedi';
             setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
-    }, [isAuthenticated]);
+    }, []);
 
     useEffect(() => {
-        loadEmployees();
-    }, [loadEmployees]);
+        if (isCompanyManager) {
+            loadEmployees();
+        } else {
+            // Yönetici olmayanlar için sadece bir hata/bilgi mesajı gösterilebilir
+            setIsLoading(false);
+            setError('Bu sayfayı görüntüleme yetkiniz bulunmamaktadır.');
+        }
+    }, [loadEmployees, isCompanyManager]);
 
-    // Form işlemleri
+    // Yeni çalışan ekleme form inputları için change handler
     const handleCreateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setCreateFormData({ ...createFormData, [e.target.name]: e.target.value });
+        setCreateFormData({
+            ...createFormData,
+            [e.target.name]: e.target.value,
+        });
     };
 
-    // YENİ ÇALIŞAN OLUŞTURMA
-    const handleCreateSubmit = async (e: React.FormEvent) => {
+    // Yeni çalışan ekleme submit handler
+    const handleCreateSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setIsCreating(true);
-        setCreateError('');
+        setError('');
 
         try {
-            const newEmployee = await createFirmEmployee(createFormData);
-            setEmployees(prev => [...prev, newEmployee]); // Listeye ekle
+            await createFirmEmployee(createFormData);
+            setSuccess(`'${createFormData.full_name}' başarıyla eklendi.`);
+            setCreateFormData(initialCreateFormData); // Formu temizle
             setIsCreateModalOpen(false); // Modalı kapat
-            setCreateFormData(initialCreateFormData); // Formu sıfırla
-            // onSuccess('Yeni çalışan başarıyla eklendi.'); // Bu sayfada bir bildirim göstermek isterseniz
+            await loadEmployees(); // Listeyi yeniden yükle
         } catch (err) {
-            setCreateError(err instanceof Error ? err.message : 'Kayıt sırasında bir hata oluştu.');
+            const errorMessage = err instanceof Error ? err.message : 'Kullanıcı eklenirken hata oluştu';
+            setError(`Ekleme başarısız: ${errorMessage}`);
         } finally {
             setIsCreating(false);
         }
     };
-
-    // ÇALIŞAN YETKİSİNİ GÜNCELLEME (Yönetici/Çalışan)
-    const handleRoleUpdate = async (employeeId: number, currentRole: boolean) => {
-        if (!isCompanyManager) return; // Sadece yönetici yapabilir
-
-        const newRole = !currentRole;
-        if (!window.confirm(`Kullanıcının yetkisini ${newRole ? 'Yönetici' : 'Çalışan'} olarak değiştirmek istediğinizden emin misiniz?`)) {
-            return;
-        }
-
-        const payload: FirmEmployeeUpdatePayload = { is_firm_manager: newRole };
+    
+    // Yetki güncelleme handler
+    const handleUpdateRole = async (userId: number, currentRole: boolean) => {
+        if (processingUserId !== null) return;
+        setProcessingUserId(userId);
+        setError('');
+        
+        const newRole: FirmEmployeeUpdatePayload = { is_firm_manager: !currentRole };
 
         try {
-            // Optimistic Update
-            setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, is_firm_manager: newRole } : e));
-            await updateFirmEmployeeRole(employeeId, payload);
+            await updateFirmEmployeeRole(userId, newRole);
+            setSuccess(`Kullanıcı yetkisi başarıyla ${!currentRole ? 'Yönetici' : 'Standart Çalışan'} olarak güncellendi.`);
+            await loadEmployees();
         } catch (err) {
-            // Hata olursa listeyi yeniden yükle
-            loadEmployees();
+            const errorMessage = err instanceof Error ? err.message : 'Yetki güncellenirken hata oluştu';
+            setError(`Yetki güncelleme başarısız: ${errorMessage}`);
+        } finally {
+            setProcessingUserId(null);
         }
     };
 
-    // ÇALIŞANI SİLME
-    const handleDeleteEmployee = async (employeeId: number) => {
-        if (!isCompanyManager) return;
-        if (!window.confirm("Bu çalışanı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.")) {
-            return;
-        }
+    // Çalışan silme handler
+    const handleDelete = async (userId: number) => {
+        if (!window.confirm("Bu çalışanı silmek istediğinizden emin misiniz?")) return;
+        
+        if (processingUserId !== null) return;
+        setProcessingUserId(userId);
+        setError('');
 
         try {
-            // Optimistic Update: Listeden çıkar
-            setEmployees(prev => prev.filter(e => e.id !== employeeId));
-            await deleteFirmEmployee(employeeId);
-            // onSuccess('Çalışan başarıyla silindi.');
+            await deleteFirmEmployee(userId);
+            setSuccess('Çalışan başarıyla silindi.');
+            await loadEmployees();
         } catch (err) {
-            // Hata olursa listeyi yeniden yükle
-            loadEmployees();
+            const errorMessage = err instanceof Error ? err.message : 'Kullanıcı silinirken hata oluştu';
+            setError(`Silme başarısız: ${errorMessage}`);
+        } finally {
+            setProcessingUserId(null);
         }
     };
 
-    // --------------------------------------------------------------------------------
-    // RENDER
-    // --------------------------------------------------------------------------------
-
-    if (!isAuthenticated || !isCompanyManager) {
-        return <div className="p-6 text-red-600 bg-red-50 rounded-lg">Bu sayfaya erişim yetkiniz yoktur.</div>;
-    }
-
-    if (isLoading) {
+    if (!isCompanyManager) {
         return (
-            <div className="flex justify-center items-center py-12 text-blue-600">
-                <Loader2 className="w-8 h-8 animate-spin mr-3" />
-                <p className="text-lg">Çalışanlar yükleniyor...</p>
+            <div className="p-8 text-center text-red-600 bg-red-50 rounded-lg">
+                <XCircle className="w-8 h-8 mx-auto mb-3" />
+                <p className="text-xl font-semibold">Yetkisiz Erişim</p>
+                <p className="mt-2">Bu sayfa sadece Firma Yöneticileri tarafından görüntülenebilir.</p>
             </div>
         );
     }
-
-    if (error) {
-        return <div className="p-4 bg-red-100 text-red-700 rounded-lg">Hata: {error}</div>;
-    }
-
+    
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                    <Users className="w-6 h-6 mr-2 text-blue-600" />
-                    Çalışan Yönetimi ({employees.length})
+        <div className="p-4">
+            <div className="flex justify-between items-center mb-6 border-b pb-3">
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                    <Users className="w-7 h-7 mr-3 text-purple-600" /> Firma Çalışanları
                 </h1>
-
-                {isCompanyManager && (
-                    <button
-                        onClick={() => {
-                            setCreateFormData(initialCreateFormData);
-                            setCreateError('');
-                            setIsCreateModalOpen(true);
-                        }}
-                        className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-colors"
-                    >
-                        <UserPlus className="w-5 h-5 mr-2" />
-                        Yeni Çalışan Ekle
-                    </button>
-                )}
+                
+                {/* YENİ BUTTON BİLEŞENİ KULLANILDI */}
+                <Button 
+                    onClick={() => { setIsCreateModalOpen(true); setError(''); setSuccess(''); }}
+                    variant="primary"
+                    icon={UserPlus}
+                >
+                    Yeni Çalışan Ekle
+                </Button>
             </div>
+            
+            {/* Hata ve Başarı Mesajları */}
+            {error && (
+                <div className="p-3 mb-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm" role="alert">
+                    {error}
+                </div>
+            )}
+            {success && (
+                <div className="p-3 mb-4 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm" role="alert">
+                    {success}
+                </div>
+            )}
 
-            <div className="overflow-x-auto bg-white rounded-xl shadow-lg border border-gray-100">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ad Soyad</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kullanıcı Adı / E-posta</th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pozisyon</th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {employees.map((employee) => (
-                            <tr key={employee.id} className={employee.id === auth?.id ? 'bg-blue-50' : 'hover:bg-gray-50'}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    <span className="flex items-center">
-                                        <User className="w-4 h-4 mr-2 text-blue-600" />
-                                        {employee.full_name}
-                                        {employee.id === auth?.id && <span className="ml-2 bg-blue-200 text-blue-800 text-xs px-2 py-0.5 rounded-full font-semibold">Siz</span>}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span className="block">{employee.username}</span>
-                                    <span className="block text-xs text-gray-400 flex items-center mt-1"><Mail className="w-3 h-3 mr-1" />{employee.email}</span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                    {employee.is_firm_manager ? (
-                                        <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Yönetici</span>
-                                    ) : (
-                                        <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Çalışan</span>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    {isCompanyManager && employee.id !== auth?.id ? (
-                                        <div className="flex justify-center space-x-2">
-                                            {/* Yetki Değiştir */}
-                                            <button
-                                                onClick={() => handleRoleUpdate(employee.id, employee.is_firm_manager)}
-                                                className={`p-2 rounded-full transition-colors`}
-                                                title={employee.is_firm_manager ? 'Çalışan Yap' : 'Yönetici Yap'}
-                                                disabled={!isCompanyManager}
-                                            >
-                                                {employee.is_firm_manager
-                                                    ? <XCircle className="w-5 h-5 text-red-500 hover:text-red-700" />
-                                                    : <CheckCircle className="w-5 h-5 text-green-500 hover:text-green-700" />
-                                                }
-                                            </button>
-
-                                            {/* Silme */}
-                                            <button
-                                                onClick={() => handleDeleteEmployee(employee.id)}
-                                                className="p-2 rounded-full text-red-600 hover:bg-red-100 transition-colors"
-                                                title="Çalışanı Sil"
-                                                disabled={!isCompanyManager}
-                                            >
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <span className="text-gray-400">İşlem Yok</span>
-                                    )}
-                                </td>
+            {isLoading ? (
+                <div className="text-center py-10 text-gray-500 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                    Çalışanlar Yükleniyor...
+                </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Ad Soyad
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Kullanıcı Adı / E-posta
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Yetki
+                                </th>
+                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Aksiyonlar
+                                </th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {employees.map((employee) => {
+                                // YENİ: İşlemde olan kullanıcı kontrolü
+                                const isProcessing = processingUserId === employee.id;
+                                // YENİ: Mevcut yönetici kendi yetkisini değiştiremez/silemez
+                                const isCurrentUser = employee.id === currentUserId; 
+                                
+                                return (
+                                    <tr key={employee.id} className={isCurrentUser ? 'bg-blue-50' : 'hover:bg-gray-50'}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            {employee.full_name} {isCurrentUser && <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full ml-2">Siz</span>}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                            <p className="font-medium">{employee.username}</p>
+                                            <p className="text-xs text-gray-500">{employee.email}</p>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                            <RoleBadge isManager={employee.is_firm_manager} />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                            
+                                            {/* YENİ BUTTON BİLEŞENLERİ KULLANILDI */}
+                                            {/* Yöneticiler kendi yetkilerini değiştiremezler */}
+                                            {!isCurrentUser && (
+                                                <Button
+                                                    onClick={() => handleUpdateRole(employee.id, employee.is_firm_manager)}
+                                                    variant={employee.is_firm_manager ? 'warning' : 'info'}
+                                                    isLoading={isProcessing}
+                                                    disabled={isProcessing}
+                                                    icon={employee.is_firm_manager ? UserX : UserCheck}
+                                                    size="sm"
+                                                    className="min-w-[120px]"
+                                                >
+                                                    {employee.is_firm_manager ? 'Standart Yap' : 'Yönetici Yap'}
+                                                </Button>
+                                            )}
+                                            
+                                            {/* Kendi hesabını silemezsin */}
+                                            {!isCurrentUser && (
+                                                <Button
+                                                    onClick={() => handleDelete(employee.id)}
+                                                    variant="danger"
+                                                    isLoading={isProcessing}
+                                                    disabled={isProcessing}
+                                                    icon={Trash2}
+                                                    size="sm"
+                                                    className="min-w-[70px]"
+                                                >
+                                                    Sil
+                                                </Button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {/* YENİ ÇALIŞAN EKLEME MODALI */}
-            {isCompanyManager && (
+            {isCreateModalOpen && (
                 <Modal
                     isOpen={isCreateModalOpen}
                     onClose={() => setIsCreateModalOpen(false)}
                     title="Yeni Çalışan Ekle"
                 >
-                    <form onSubmit={handleCreateSubmit} className="space-y-4">
+                    {/* Form Hata/Başarı Mesajı */}
+                    {error && (
+                        <div className="p-3 mb-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm" role="alert">
+                            {error}
+                        </div>
+                    )}
+                    {success && (
+                        <div className="p-3 mb-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm" role="alert">
+                            {success}
+                        </div>
+                    )}
 
-                        {/* Hata Mesajı */}
-                        {createError && (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                                {createError}
-                            </div>
-                        )}
+                    <form onSubmit={handleCreateSubmit} className="space-y-4 pt-4">
+                        
+                        {/* AD SOYAD */}
+                        <Input
+                            icon={User}
+                            type="text"
+                            name="full_name"
+                            placeholder="Ad Soyad"
+                            value={createFormData.full_name}
+                            onChange={handleCreateChange}
+                            isLoading={isCreating}
+                            required
+                        />
+                        
+                        {/* KULLANICI ADI */}
+                        <Input
+                            icon={User}
+                            type="text"
+                            name="username"
+                            placeholder="Kullanıcı Adı"
+                            value={createFormData.username}
+                            onChange={handleCreateChange}
+                            isLoading={isCreating}
+                            required
+                        />
 
-                        <div>
-                            <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">Ad Soyad</label>
-                            <input type="text" name="full_name" value={createFormData.full_name} onChange={handleCreateChange} required className="input-field" disabled={isCreating} />
-                        </div>
-                        <div>
-                            <label htmlFor="username" className="block text-sm font-medium text-gray-700">Kullanıcı Adı</label>
-                            <input type="text" name="username" value={createFormData.username} onChange={handleCreateChange} required className="input-field" disabled={isCreating} />
-                        </div>
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">E-posta</label>
-                            <input type="email" name="email" value={createFormData.email} onChange={handleCreateChange} required className="input-field" disabled={isCreating} />
-                        </div>
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Şifre</label>
-                            <input type="password" name="password" value={createFormData.password} onChange={handleCreateChange} required className="input-field" disabled={isCreating} />
-                        </div>
+                        {/* E-POSTA */}
+                        <Input
+                            icon={Mail}
+                            type="email"
+                            name="email"
+                            placeholder="E-posta Adresi"
+                            value={createFormData.email}
+                            onChange={handleCreateChange}
+                            isLoading={isCreating}
+                            required
+                        />
 
-                        <button
+                        {/* ŞİFRE */}
+                        <Input
+                            icon={Key}
+                            type="password"
+                            name="password"
+                            placeholder="Geçici Şifre"
+                            value={createFormData.password}
+                            onChange={handleCreateChange}
+                            isLoading={isCreating}
+                            required
+                        />
+
+                        {/* SUBMIT BUTONU - YENİ BUTTON BİLEŞENİ KULLANILDI */}
+                        <Button
                             type="submit"
-                            disabled={isCreating}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-green-400 disabled:cursor-not-allowed flex items-center justify-center"
+                            isLoading={isCreating}
+                            variant="success"
+                            icon={UserPlus}
+                            className="w-full mt-6"
                         >
-                            {isCreating && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
-                            {isCreating ? 'Ekleniyor...' : 'Çalışanı Kaydet'}
-                        </button>
+                            Çalışanı Kaydet
+                        </Button>
                     </form>
                 </Modal>
             )}

@@ -1,9 +1,13 @@
-// frontend/src/components/ReferralForm.tsx
+// frontend/src/components/ReferralForm.tsx (GÜNCELLENDİ)
 
-import React, { useState } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { type IReferralRequestIn, type IService } from '../types/api';
 import { createReferral } from '../apiClient';
-import { Send } from 'lucide-react';
+import { Send, User, Mail, MessageSquare } from 'lucide-react'; 
+
+// YENİ BİLEŞENLERİ İMPORT ET
+import Input from './Input';
+import Button from './Button'; 
 
 interface ReferralFormProps {
     service: IService;
@@ -22,6 +26,7 @@ const ReferralForm: React.FC<ReferralFormProps> = ({ service, onSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [submissionError, setSubmissionError] = useState<string | null>(null);
 
+    // Hem input hem de textarea için çalışacak tek bir handler
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData({
             ...formData,
@@ -37,82 +42,94 @@ const ReferralForm: React.FC<ReferralFormProps> = ({ service, onSuccess }) => {
         try {
             await createReferral(formData);
             
-            onSuccess('Talebiniz başarıyla gönderildi! Firma sizinle iletişime geçecektir.');
-
-            setFormData({ 
-                ...formData, 
-                customer_name: '', 
-                customer_email: '', 
-                description: '' 
-            });
-
-        } catch (error: any) {
-            const message = error.message.includes('400') ? 'Lütfen tüm alanları doğru doldurunuz.' : 'Talep gönderilirken bir hata oluştu.';
-            setSubmissionError(message);
+            onSuccess('Talebiniz başarıyla gönderildi! Firma size en kısa sürede geri dönüş yapacaktır.');
+            
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Talep gönderilemedi.';
+            setSubmissionError(`Gönderme başarısız: ${errorMessage}`);
         } finally {
             setLoading(false);
         }
     };
+    
+    // Fiyat aralığı bilgisini formatlama
+    const priceInfo = service.price_range 
+        ? `Bu hizmet için beklenen fiyat aralığı: ${service.price_range}`
+        : 'Firma fiyat aralığı belirtmemiştir. Lütfen açıklamanızda fiyat beklentinizi belirtin.';
 
     return (
-        <form onSubmit={handleSubmit} className="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-lg space-y-3">
-            <h4 className="text-lg font-semibold text-blue-700">
-                {service.company.name} firmasına talep gönder
-            </h4>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             
+            {/* Hata Mesajı */}
             {submissionError && (
-                <p className="p-2 bg-red-100 text-red-700 rounded text-sm">{submissionError}</p>
+                <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm" role="alert">
+                    {submissionError}
+                </div>
             )}
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adınız:</label>
-                <input
-                    type="text"
-                    name="customer_name"
-                    value={formData.customer_name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                />
+            
+            {/* Hizmet Bilgisi */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
+                <p className="font-semibold text-blue-800 mb-1">{service.title}</p>
+                <p>{priceInfo}</p>
             </div>
             
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-posta Adresiniz:</label>
-                <input
-                    type="email"
-                    name="customer_email"
-                    value={formData.customer_email}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                />
-            </div>
+            {/* Müşteri Adı - YENİ INPUT BİLEŞENİ KULLANILDI */}
+            <Input
+                icon={User}
+                type="text"
+                name="customer_name"
+                placeholder="Adınız ve Soyadınız"
+                value={formData.customer_name}
+                onChange={handleChange}
+                isLoading={loading}
+                required
+            />
             
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Açıklama/Detaylar:</label>
+            {/* Müşteri E-postası - YENİ INPUT BİLEŞENİ KULLANILDI */}
+            <Input
+                icon={Mail}
+                type="email"
+                name="customer_email"
+                placeholder="E-posta Adresiniz"
+                value={formData.customer_email}
+                onChange={handleChange}
+                isLoading={loading}
+                required
+            />
+            
+            {/* Açıklama/Detaylar - TEXTAREA için uyumlu stiller */}
+            <div className="space-y-1">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                    <MessageSquare className="w-4 h-4 mr-1 inline-block align-text-bottom text-gray-500" />
+                    İşinizi Detaylı Açıklayın (Gerekli)
+                </label>
                 <textarea
+                    id="description"
                     name="description"
-                    rows={3}
+                    rows={4}
                     value={formData.description}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    disabled={loading} // Loading durumunu yansıt
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-y
+                        ${loading ? 'bg-gray-100 border-gray-300' : 'border-gray-300 hover:border-gray-400'}`
+                    }
+                    placeholder="İhtiyacınız olan hizmeti, bütçenizi ve aciliyetinizi detaylıca açıklayın."
                 />
             </div>
             
-            <button 
+            {/* SUBMIT BUTONU - YENİ BUTTON BİLEŞENİ KULLANILDI */}
+            <Button 
                 type="submit" 
-                disabled={loading} 
-                className="w-full inline-flex justify-center items-center py-2 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+                variant="primary" 
+                isLoading={loading} 
+                icon={Send}
+                className="w-full mt-6"
             >
-                {loading ? 'Gönderiliyor...' : (
-                    <>
-                        <Send className="w-5 h-5 mr-2" /> Hizmet Talebi Gönder
-                    </>
-                )}
-            </button>
+                Hizmet Talebi Gönder
+            </Button>
         </form>
     );
-};
+}
 
 export default ReferralForm;

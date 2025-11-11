@@ -7,6 +7,6 @@ Türkiye'deki niş ve zor bulunan hizmetler (örneğin, endüstriyel tamir, öze
 python manage.py qcluster
 
 python manage.py runserver
-
+cd frontend
 npm run dev
 

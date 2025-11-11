@@ -1,9 +1,12 @@
-// frontend/src/pages/FirmPanel.tsx (GÜNCEL LAYOUT BİLEŞENİ)
+// frontend/src/pages/FirmPanel.tsx (GÜNCELLENDİ: Hizmet Yönetimi Sekmesi Eklendi)
 
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Clock, Users, Building2, ChevronLeft } from 'lucide-react';
+import { Clock, Users, Building2, ChevronLeft, Package } from 'lucide-react'; // Package ikonu eklendi
+// Yeni hizmet listeleme bileşenini import ediyoruz:
+import FirmServiceList from './FirmServiceList';
+
 
 // Sekmelerin tanımı
 interface Tab {
@@ -19,6 +22,13 @@ const tabs: Tab[] = [
         label: 'Gelen Talepler',
         icon: Clock,
         managerOnly: false,
+    },
+    {
+        // YENİ SEKME: Firma Hizmetleri
+        path: 'services',
+        label: 'Hizmet Yönetimi',
+        icon: Package, // Yeni ikon
+        managerOnly: true, // Hizmet yönetimi sadece yöneticiye ait olmalı
     },
     {
         path: 'users',
@@ -40,42 +50,44 @@ export default function FirmPanel() {
     }
 
     // Aktif sekmeyi belirlemek için URL'in son parçasını alırız.
-    const currentPath = location.pathname.split('/').pop() || 'requests';
+    const currentPath = location.pathname.split('/').pop() || 'requests'; // Default: requests
 
     return (
-        <div className="min-h-screen bg-gray-50 py-10">
-            <div className="max-w-7xl mx-auto px-4">
-                <h1 className="text-3xl font-bold text-gray-900 mb-6 flex items-center border-b pb-2">
-                    <Building2 className="w-7 h-7 mr-3 text-blue-600" />
-                    Firma Yönetim Paneli
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+            <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold text-gray-900 mb-6 flex items-center">
+                    <Building2 className="w-7 h-7 mr-3 text-red-600" /> Firma Yönetim Paneli
                 </h1>
 
-                {/* Sekme Navigasyonu */}
-                <div className="flex border-b border-gray-200 mb-8">
+                {/* Yan Menü (Sekmeler) */}
+                <div className="flex space-x-2 border-b border-gray-200 mb-6 overflow-x-auto whitespace-nowrap">
                     {tabs
-                        // isCompanyManager kontrolü ile sadece yetkili sekmeleri filtrele
+                        // Sadece yönetici olmayanlar için managerOnly: false olanları göster
                         .filter(tab => !tab.managerOnly || isCompanyManager) 
                         .map((tab) => (
                             <Link
                                 key={tab.path}
                                 to={tab.path}
                                 className={`
-                                    flex items-center px-4 py-2 text-sm font-medium transition-colors duration-200
-                                    ${currentPath === tab.path || (currentPath === 'firm-panel' && tab.path === 'requests') // Default request sayfasını aktif kabul et
-                                        ? 'border-b-2 border-blue-600 text-blue-600'
-                                        : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    flex items-center px-4 py-3 text-base font-medium transition-colors duration-200
+                                    ${currentPath === tab.path || (currentPath === 'firm-panel' && tab.path === 'requests')
+                                        ? 'border-b-4 border-blue-600 text-blue-600 bg-white shadow-t' // Aktif sekme stili
+                                        : 'text-gray-600 hover:text-blue-800 hover:bg-gray-100 border-b-4 border-transparent'
                                     }
+                                    -mb-px rounded-t-lg
                                 `}
                             >
                                 <tab.icon className="w-5 h-5 mr-2" />
                                 {tab.label}
                             </Link>
-                        ))}
+                        ))
+                    }
                 </div>
 
                 {/* Sekme İçeriği */}
+                {/* Ana içerik Outlet ile gösterilecek. Stil FirmPanel'e taşındı. */}
                 <div className="bg-white p-6 rounded-xl shadow-lg">
-                    {/* Alt rotaların içeriği burada gösterilir (ReferralList veya FirmUserManagement) */}
+                    {/* Alt rotaların içeriği burada gösterilir */}
                     <Outlet /> 
                 </div>
                 

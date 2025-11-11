@@ -1,12 +1,15 @@
-// frontend/src/components/Header.tsx
+// frontend/src/components/Header.tsx (GÜNCELLENDİ)
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth'; // useAuth hook'u ile yetki ve çıkış bilgisini alıyoruz
+import { useAuth } from '../hooks/useAuth'; 
+// YENİ: Kullanıcı rollerini göstermek için ikonlar
+import { Building2, ShieldCheck, User } from 'lucide-react'; 
 
 const Header: React.FC = () => {
     // Hook'tan yetki bilgilerini çekiyoruz
-    const { isAuthenticated: loggedIn, isSuperAdmin, logout } = useAuth(); 
+    // YENİ: `auth` objesini de alıyoruz (fullName ve roller için)
+    const { isAuthenticated: loggedIn, isSuperAdmin, logout, auth } = useAuth(); 
 
     return (
         <header className="bg-gray-800 text-white p-4 shadow-md sticky top-0 z-40">
@@ -37,41 +40,55 @@ const Header: React.FC = () => {
                         </Link>
                     )}
                     
-                    {/* Firma Paneli Linki */}
-                    <Link 
-                        to="/firm-panel" 
-                        className={`${loggedIn ? 'text-yellow-400 font-semibold' : 'hover:text-gray-300'} transition duration-300`}
-                    >
-                        Firma Paneli
-                    </Link>
+                    {/* Firma Paneli Linki (Giriş yapmışsa vurgulanır) */}
+                    {loggedIn && (
+                        <Link 
+                            to="/firm-panel" 
+                            className="text-yellow-400 font-semibold hover:text-yellow-300 transition duration-300"
+                        >
+                            Firma Paneli
+                        </Link>
+                    )}
 
                     {/* Oturum Durumu Kontrolü */}
                     {loggedIn ? (
-                        // Giriş Yapılmışsa: Çıkış Yap Düğmesi
-                        <button
-                            onClick={logout} // authService'deki fonksiyonu çağırır
-                            className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
-                        >
-                            Çıkış Yap
-                        </button>
-                    ) : (
-                        // Giriş Yapılmamışsa: Giriş ve Kayıt Linkleri
+                        // === GİRİŞ YAPILMIŞSA ===
                         <>
-                            {/* YENİ: Müşteri Kayıt Linki */}
+                            {/* YENİ: Kullanıcı Bilgisi Alanı */}
+                            <div className="flex items-center space-x-2 text-sm text-gray-300">
+                                {auth.isSuperuser ? (
+                                    <ShieldCheck className="w-5 h-5 text-orange-400" />
+                                ) : auth.isFirmManager ? (
+                                    <Building2 className="w-5 h-5 text-yellow-400" />
+                                ) : (
+                                    <User className="w-5 h-5 text-blue-400" />
+                                )}
+                                <span className="font-medium">{auth.fullName || 'Kullanıcı'}</span>
+                            </div>
+
+                            {/* Çıkış Yap Düğmesi */}
+                            <button
+                                onClick={logout} // authService'deki fonksiyonu çağırır
+                                className="bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"
+                            >
+                                Çıkış Yap
+                            </button>
+                        </>
+                    ) : (
+                        // === GİRİŞ YAPILMAMIŞSA ===
+                        <>
                             <Link 
                                 to="/register" 
                                 className="hover:text-gray-300 transition duration-300 text-sm"
                             >
                                 Müşteri Kayıt
                             </Link>
-                            {/* YENİ: Firma Kayıt Linki */}
                             <Link 
                                 to="/firm-register" 
                                 className="hover:text-gray-300 transition duration-300 text-sm"
                             >
                                 Firma Kayıt
                             </Link>
-                            {/* Giriş Yap Linki */}
                             <Link 
                                 to="/login" 
                                 className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-full text-sm transition duration-300"

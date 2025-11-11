@@ -2,13 +2,16 @@
 
 import {
     type IService,
+    type IServiceCreateIn, 
+    type IServiceUpdateIn,
     type IReferralRequestIn,
     type IReferralRequestOut,
     type IUser,
     type FirmEmployeeCreatePayload,
     type FirmEmployeeUpdatePayload,
     type IRegisterIn,
-    type IFirmRegisterIn
+    type IFirmRegisterIn,
+    
 } from './types/api';
 import { getAccessToken, logout } from './authService';
 
@@ -209,4 +212,36 @@ export const deleteFirmEmployee = (userId: number): Promise<void> => {
  */
 export const fetchAllReferrals = (): Promise<IReferralRequestOut[]> => {
     return callApi<IReferralRequestOut[]>('core/admin/referrals', 'GET', null, true);
+};
+
+/**
+ * Firma: Oturum açmış firmanın hizmetlerini listeler. (GET /firm/services)
+ */
+export const fetchFirmServices = (): Promise<IService[]> => {
+    // Endpoint: api/core/firm/services
+    return callApi<IService[]>('core/firm/services', 'GET', null, true);
+};
+
+/**
+ * Firma: Oturum açmış firmanın yeni bir hizmetini oluşturur (POST /firm/services). JWT ve IsFirmManager gereklidir.
+ */
+export const createFirmService = (payload: IServiceCreateIn): Promise<IService> => {
+    // Endpoint: api/core/firm/services
+    return callApi<IService>('core/firm/services', 'POST', payload, true);
+};
+
+/**
+ * Firma: Mevcut bir hizmeti günceller (PUT /firm/services/{id}). JWT ve IsFirmManager gereklidir.
+ */
+export const updateFirmService = (serviceId: number, payload: IServiceUpdateIn): Promise<IService> => {
+    // Endpoint: api/core/firm/services/{serviceId}
+    return callApi<IService>(`core/firm/services/${serviceId}`, 'PUT', payload, true);
+};
+
+/**
+ * Firma: Mevcut bir hizmeti siler (DELETE /firm/services/{id}). JWT ve IsFirmManager gereklidir.
+ */
+export const deleteFirmService = (serviceId: number): Promise<void> => {
+    // Endpoint: api/core/firm/services/{serviceId}
+    return callApi<void>(`core/firm/services/${serviceId}`, 'DELETE', null, true);
 };

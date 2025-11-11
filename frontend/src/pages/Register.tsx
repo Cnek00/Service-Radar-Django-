@@ -1,10 +1,14 @@
-// frontend/src/pages/Register.tsx
+// frontend/src/pages/Register.tsx (GÜNCELLENDİ)
 
 import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus, Loader2 } from 'lucide-react';
+import { UserPlus, Mail, User, Key } from 'lucide-react'; 
 import { registerCustomer } from '../apiClient'; 
 import { type IRegisterIn } from '../types/api'; 
+
+// YENİ BİLEŞENLERİ İMPORT ET
+import Button from '../components/Button'; 
+import Input from '../components/Input'; 
 
 // Müşteri kayıt formu için başlangıç state'i
 const initialCredentials: IRegisterIn = {
@@ -39,60 +43,108 @@ export default function Register() {
             const result = await registerCustomer(credentials); 
 
             if (result.success) {
-                setSuccess('Kayıt başarılı! Giriş sayfasına yönlendiriliyorsunuz.');
+                setSuccess('Kayıt başarılı! Giriş sayfasına yönlendiriliyorsunuz...');
+                // 3 saniye sonra login sayfasına yönlendir
                 setTimeout(() => {
                     navigate('/login');
                 }, 3000);
             } else {
-                setError(result.error || 'Kayıt başarısız oldu');
+                // Backend'den gelen detaylı hata mesajını kullan
+                setError(result.error || 'Kayıt başarısız oldu'); 
             }
         } catch (err) {
-            setError('Beklenmeyen bir hata oluştu: Sunucuya ulaşılamıyor.');
+            setError('Beklenmeyen bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-            <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-2xl border border-gray-100">
-                <div className="flex flex-col items-center mb-6">
-                    <UserPlus className="w-12 h-12 text-blue-600 mb-3" />
-                    <h2 className="text-3xl font-bold text-gray-900">Müşteri Kayıt</h2>
-                    <p className="mt-2 text-sm text-gray-600">Hizmet talebi göndermek için hemen üye ol!</p>
-                </div>
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+                <h2 className="text-3xl font-bold text-gray-900 text-center mb-6 flex items-center justify-center space-x-2">
+                    <UserPlus className="w-7 h-7 text-blue-600" />
+                    <span>Müşteri Kayıt</span>
+                </h2>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">Adınız Soyadınız</label>
-                        <input type="text" id="full_name" name="full_name" value={credentials.full_name} onChange={handleChange} disabled={isLoading} required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all disabled:bg-gray-100"/>
-                    </div>
-                    <div>
-                        <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Kullanıcı Adı</label>
-                        <input type="text" id="username" name="username" value={credentials.username} onChange={handleChange} disabled={isLoading} required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all disabled:bg-gray-100"/>
-                    </div>
-                    <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">E-posta</label>
-                        <input type="email" id="email" name="email" value={credentials.email} onChange={handleChange} disabled={isLoading} required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all disabled:bg-gray-100"/>
-                    </div>
-                    <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Şifre</label>
-                        <input type="password" id="password" name="password" value={credentials.password} onChange={handleChange} disabled={isLoading} required className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all disabled:bg-gray-100"/>
-                    </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    
+                    {/* Hata ve Başarı Mesajları */}
+                    {error && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                            {error}
+                        </div>
+                    )}
+                    {success && (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                            {success}
+                        </div>
+                    )}
+                    
+                    {/* KULLANICI ADI */}
+                    <Input
+                        icon={User}
+                        type="text"
+                        name="username"
+                        placeholder="Kullanıcı Adı"
+                        value={credentials.username}
+                        onChange={handleChange}
+                        isLoading={isLoading}
+                        required
+                        helperText="Sisteme giriş yaparken kullanacağınız benzersiz ad."
+                    />
 
-                    {error && (<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>)}
-                    {success && (<div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">{success}</div>)}
+                    {/* E-POSTA */}
+                    <Input
+                        icon={Mail}
+                        type="email"
+                        name="email"
+                        placeholder="E-posta Adresi"
+                        value={credentials.email}
+                        onChange={handleChange}
+                        isLoading={isLoading}
+                        required
+                    />
+                    
+                    {/* AD SOYAD */}
+                    <Input
+                        icon={User}
+                        type="text"
+                        name="full_name"
+                        placeholder="Ad Soyad"
+                        value={credentials.full_name}
+                        onChange={handleChange}
+                        isLoading={isLoading}
+                        required
+                    />
 
-                    <button
+                    {/* ŞİFRE */}
+                    <Input
+                        icon={Key}
+                        type="password"
+                        name="password"
+                        placeholder="Şifre"
+                        value={credentials.password}
+                        onChange={handleChange}
+                        isLoading={isLoading}
+                        required
+                        helperText="En az 8 karakter olmalıdır."
+                    />
+
+                    {/* YENİ BUTTON KULLANIMI */}
+                    <Button
                         type="submit"
-                        disabled={isLoading || !!success}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center justify-center"
+                        isLoading={isLoading}
+                        variant="primary"
+                        icon={UserPlus}
+                        className="w-full mt-6"
+                        disabled={!!success}
                     >
-                        {isLoading && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
-                        {isLoading ? 'Kayıt Olunuyor...' : 'Hemen Kayıt Ol'}
-                    </button>
+                        Hemen Kayıt Ol
+                    </Button>
                 </form>
 
+                {/* Giriş Linki */}
                 <p className="mt-6 text-center text-sm text-gray-600">
                     Zaten bir hesabınız var mı?{' '}
                     <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
