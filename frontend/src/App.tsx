@@ -1,110 +1,106 @@
-// frontend/src/App.tsx (GÜNCELLENDİ: FirmServiceList rotası eklendi)
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import './App.css';
-
-// Yetkilendirme Servisi
-import { isAuthenticated, isSuperuser } from './authService'; 
-// import { useAuth } from './hooks/useAuth'; // Eğer useAuth hook'unu kullanıyorsanız
-
-// Bileşenler ve Sayfalar
-import Header from './components/Header';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { initTheme } from './utils/theme';
+import EnhancedHeader from './components/EnhancedHeader';
 import HomePage from './pages/HomePage';
 import Login from './pages/Login';
-import Register from './pages/Register'; // Müşteri Kayıt Sayfası
-import FirmRegister from './pages/FirmRegister'; // Firma Kayıt Sayfası
-import FirmPanel from './pages/FirmPanel';
-import ReferralList from './pages/ReferralList'; // Firma Paneli Alt Rotası 1
-import FirmServiceList from './pages/FirmServiceList'; // YENİ: Firma Hizmet Yönetimi
-import FirmUserManagement from './pages/FirmUserManagement'; // Firma Paneli Alt Rotası 2
-import AdminPanel from './pages/AdminPanel'; // Admin Paneli
-import NotFound from './pages/NotFound';
+import Register from './pages/Register';
+import FavoritesPanel from './components/FavoritesPanel';
+import SettingsPanel from './components/SettingsPanel';
+import './App.css';
 
-// ------------------------------------------------------------------
-// KORUMALI ROTA BİLEŞENİ
-// ------------------------------------------------------------------
-
-// useAuth hook'unu kullanmıyorsanız bu yapı yeterli.
-interface ProtectedRouteProps {
-    element: React.FC<any>; // React.FC'nin props alabilmesi için any
-    mustBeAdmin?: boolean; 
+interface AuthState {
+  isAuthenticated: boolean;
+  userFullName: string | null;
+  isSuperAdmin: boolean;
+  isCompanyManager: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element: Component, mustBeAdmin }) => {
-    // 1. Oturum kontrolü
-    if (!isAuthenticated()) {
-        return <Navigate to="/login" replace />;
-    }
-
-    // 2. Admin yetki kontrolü
-    if (mustBeAdmin && !isSuperuser()) {
-        // Normal bir kullanıcı admin paneline girmeye çalışırsa ana sayfaya yönlendir
-        return <Navigate to="/" replace />;
-    }
-    
-    // Geçerliyse bileşeni render et
-    return <Component />;
-};
-
-
 function App() {
-    // Başarı mesajı göstermek için state (Genellikle toast/bildirim sistemi kullanılır)
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<AuthState>({
+    isAuthenticated: !!localStorage.getItem('accessToken'),
+    userFullName: localStorage.getItem('full_name'),
+    isSuperAdmin: localStorage.getItem('user_is_superuser') === 'true',
+    isCompanyManager: localStorage.getItem('user_is_firm_manager') === 'true',
+  });
 
-    const handleSuccess = (message: string) => {
-        setSuccessMessage(message);
-        // 5 saniye sonra mesajı temizle
-        setTimeout(() => setSuccessMessage(null), 5000);
-    };
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
 
-    return (
-        <Router>
-            <div className="flex flex-col min-h-screen">
-                <Header />
+  useEffect(() => {
+    initTheme();
+  }, []);
 
-                {/* Başarı Mesajı Bildirimi */}
-                {successMessage && (
-                    <div 
-                        className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 fixed top-0 left-1/2 transform -translate-x-1/2 mt-4 z-50 rounded-lg shadow-lg" 
-                        role="alert"
-                    >
-                        <p className="font-bold">Başarılı!</p>
-                        <p>{successMessage}</p>
-                    </div>
-                )}
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user_is_superuser');
+    localStorage.removeItem('user_is_firm_manager');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('full_name');
 
-                <main className="flex-grow container mx-auto p-4 max-w-7xl">
-                    <Routes>
-                        <Route path="/" element={<HomePage onSuccess={handleSuccess} />} /> 
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} /> 
-                        <Route path="/firm-register" element={<FirmRegister />} />
-                        
-                        {/* Korumalı Firma Paneli ve Alt Rotaları */}
-                        <Route path="/firm-panel" element={<ProtectedRoute element={FirmPanel} />}>
-                            {/* /firm-panel'e doğrudan erişilirse, requests'e yönlendir */}
-                            <Route index element={<Navigate to="requests" replace />} /> 
-                            {/* /firm-panel/requests: Gelen Talepler Listesi */}
-                            <Route path="requests" element={<ReferralList />} />
-                            {/* /firm-panel/services: Firma Hizmet Yönetimi (YENİ ROTA) */}
-                            <Route path="services" element={<FirmServiceList />} />
-                            {/* /firm-panel/users: Firma Kullanıcı Yönetimi */}
-                            <Route path="users" element={<FirmUserManagement />} />
-                        </Route>
+    setAuthState({
+      isAuthenticated: false,
+      userFullName: null,
+      isSuperAdmin: false,
+      isCompanyManager: false,
+    });
 
-                        {/* Korumalı Admin Paneli Rotası */}
-                        <Route 
-                            path="/admin-panel" 
-                            element={<ProtectedRoute element={AdminPanel} mustBeAdmin={true} />} 
-                        />
+    window.location.href = '/';
+  };
 
-                        <Route path="*" element={<NotFound />} />
-                    </Routes>
-                </main>
+  const showNotification = (message: string) => {
+    setNotification(message);
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  return (
+    <ThemeProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+          <EnhancedHeader
+            isAuthenticated={authState.isAuthenticated}
+            userFullName={authState.userFullName}
+            isSuperAdmin={authState.isSuperAdmin}
+            isCompanyManager={authState.isCompanyManager}
+            onLogout={handleLogout}
+            onShowFavorites={() => setShowFavorites(true)}
+            onShowSettings={() => setShowSettings(true)}
+          />
+
+          <main className="min-h-[calc(100vh-4rem)]">
+            <Routes>
+              <Route
+                path="/"
+                element={<HomePage onSuccess={showNotification} />}
+              />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+
+          <FavoritesPanel
+            isOpen={showFavorites}
+            onClose={() => setShowFavorites(false)}
+          />
+
+          <SettingsPanel
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+          />
+
+          {notification && (
+            <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-slide-up">
+              <p className="font-medium">{notification}</p>
             </div>
-        </Router>
-    );
+          )}
+        </div>
+      </Router>
+    </ThemeProvider>
+  );
 }
 
 export default App;
