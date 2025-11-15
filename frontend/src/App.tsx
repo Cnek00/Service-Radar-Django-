@@ -6,8 +6,15 @@ import EnhancedHeader from './components/EnhancedHeader';
 import HomePage from './pages/HomePage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ServiceDetail from './pages/ServiceDetail';
+import FirmPanel from './pages/FirmPanel';
+import FirmReferralList from './pages/FirmReferralList';
+import FirmServiceList from './pages/FirmServiceList';
+import FirmUserManagement from './pages/FirmUserManagement';
+import FirmSettings from './pages/FirmSettings';
 import FavoritesPanel from './components/FavoritesPanel';
 import SettingsPanel from './components/SettingsPanel';
+import CompanySettings from './pages/CompanySettings';
 import './App.css';
 
 interface AuthState {
@@ -76,8 +83,21 @@ function App() {
                 path="/"
                 element={<HomePage onSuccess={showNotification} />}
               />
+              <Route path="/service/:serviceId" element={<ServiceDetail />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              {authState.isCompanyManager && (
+                <>
+                  <Route path="/firma-panel" element={<FirmPanel />}>
+                    <Route index element={<Navigate to="requests" replace />} />
+                    <Route path="requests" element={<FirmReferralList />} />
+                    <Route path="services" element={<FirmServiceList />} />
+                    <Route path="users" element={<FirmUserManagement />} />
+                    <Route path="settings" element={<FirmSettings />} />
+                  </Route>
+                  <Route path="/company-settings" element={<CompanySettings />} />
+                </>
+              )}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

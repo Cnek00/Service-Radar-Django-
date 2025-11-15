@@ -47,3 +47,69 @@ class User(AbstractUser):
     # __str__ metodunu kullanıyoruz
     def __str__(self):
         return self.email or self.username
+
+
+class CustomerAddress(models.Model):
+    """
+    Müşteri adres modeli.
+    Her müşteri birden fazla adres kaydedebilir (ev, iş, vb.).
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='addresses',
+        verbose_name="Kullanıcı"
+    )
+    
+    full_address = models.CharField(
+        max_length=500,
+        verbose_name="Tam Adres"
+    )
+    
+    street = models.CharField(
+        max_length=255,
+        verbose_name="Sokak/Cadde"
+    )
+    
+    district = models.CharField(
+        max_length=100,
+        verbose_name="İlçe"
+    )
+    
+    city = models.CharField(
+        max_length=100,
+        verbose_name="Şehir"
+    )
+    
+    postal_code = models.CharField(
+        max_length=10,
+        verbose_name="Posta Kodu"
+    )
+    
+    phone = models.CharField(
+        max_length=20,
+        verbose_name="Telefon"
+    )
+    
+    is_default = models.BooleanField(
+        default=False,
+        verbose_name="Varsayılan Adres"
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Oluşturma Tarihi"
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Güncelleme Tarihi"
+    )
+    
+    class Meta:
+        verbose_name = "Müşteri Adresi"
+        verbose_name_plural = "Müşteri Adresleri"
+        ordering = ['-is_default', '-created_at']
+    
+    def __str__(self):
+        return f"{self.city} - {self.street} ({self.user.email})"

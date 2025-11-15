@@ -15,7 +15,8 @@ from haystack.query import SearchQuerySet
 
 # Local Imports
 from core.models import Service, Company, ReferralRequest
-from .schemas import ServiceSchema, ReferralRequestIn, ReferralRequestOut , RequestActionIn
+from .schemas import ServiceSchema, ReferralRequestIn, ReferralRequestOut, RequestActionIn, CompanySchema, CompanyUpdateIn
+from .schemas import CategorySchema, ServiceCreateIn
 from django.db import transaction
 from django.contrib.auth.hashers import make_password
 from django.utils.text import slugify
@@ -25,6 +26,7 @@ from users.models import User
 from firm.models import Firm
 from ninja import Schema
 from firm.api import router as firm_management_router
+from users.api.router import router as users_management_router
 
 # =======================================================
 # YETKİLENDİRME (AUTHENTICATION) SINIFI
@@ -80,20 +82,44 @@ def status(request):
 # =======================================================
 
 @router.get("/services/search", response=List[ServiceSchema], tags=["Müşteri Arama"], auth=None)
-def search_services(request: HttpRequest, query: str = None, location: str = None):
+def search_services(request: HttpRequest, query: str = None, location: str = None, category: str = None):
     """Hizmetleri anahtar kelime ve konuma göre arar."""
     
-    services = Service.objects.select_related('company').all()
+    services = Service.objects.select_related('company', 'category').all()
     
     if query:
-        sqs = SearchQuerySet().filter(content=query)
-        service_ids = [result.pk for result in sqs]
-        services = services.filter(id__in=service_ids)
+        try:
+            sqs = SearchQuerySet().filter(content=query)
+            service_ids = [result.pk for result in sqs]
+            services = services.filter(id__in=service_ids)
+        except Exception:
+            # If search fails, fall back to title/description search
+            services = services.filter(
+                Q(title__icontains=query) | Q(description__icontains=query) | Q(keywords__icontains=query)
+            )
 
     if location:
         services = services.filter(company__location_text__icontains=location)
+    
+    if category:
+        # Accept either category slug or name, handle null categories gracefully
+        try:
+            services = services.filter(
+                Q(category__slug__iexact=category) | Q(category__name__icontains=category)
+            )
+        except Exception:
+            # If category filter fails, just skip it
+            pass
         
-    return services.select_related('company') 
+    return services
+
+
+@router.get("/services/{service_id}", response=ServiceSchema, tags=["Müşteri"], auth=None)
+def get_service_detail(request: HttpRequest, service_id: int):
+    """Hizmetin detay bilgilerini getirir."""
+    service = get_object_or_404(Service, id=service_id)
+    return service
+
 
 @router.post("/referral/create", response={201: ReferralRequestOut}, tags=["Müşteri Talep"], auth=None)
 def create_referral_request(request: HttpRequest, payload: ReferralRequestIn):
@@ -203,6 +229,58 @@ def request_action(request: HttpRequest, request_id: int, payload: RequestAction
 
 
 # =======================================================
+# Firma - Company yönetimi (Firma yöneticileri kendi şirket bilgilerini görebilir/güncelleyebilir)
+# =======================================================
+@router.get('/firm/company', response=CompanySchema, tags=['Firma Paneli'])
+def get_my_company(request: HttpRequest):
+    user = request.auth
+    if getattr(user, 'is_superuser', False):
+        # Süperuser için tüm şirketleri görme endpoint'i değil, tekil kullanım
+        return JsonResponse({'detail': 'Süper kullanıcı bu endpointi doğrudan kullanamaz.'}, status=400)
+
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+
+    return company
+
+
+@router.put('/firm/company', response=CompanySchema, tags=['Firma Paneli'])
+def update_my_company(request: HttpRequest, payload: 'CompanyUpdateIn'):
+    user = request.auth
+
+    # Yalnızca firma yöneticileri veya süperuser izinli
+    if not getattr(user, 'is_superuser', False) and not getattr(user, 'is_firm_manager', False):
+        return JsonResponse({"detail": "Bu işlem için firma yöneticisi olmanız gerekir."}, status=403)
+
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+
+    # Güncellenebilir alanlar
+    updatable = [
+        'name', 'description', 'location_text', 'phone', 'email', 'tax_number',
+        'trade_registry_number', 'logo', 'cover_image', 'working_hours', 'special_days',
+        'min_order_amount', 'default_delivery_fee', 'estimated_delivery_time_minutes', 'delivery_areas'
+    ]
+
+    for field in updatable:
+        if hasattr(payload, field):
+            setattr(company, field, getattr(payload, field))
+
+    company.save()
+    return company
+
+
+# =======================================================
 # KULLANICI / FİRMA KAYIT ENDPOINTLERİ (PUBLIC)
 # =======================================================
 
@@ -251,9 +329,20 @@ class FirmRegisterIn(Schema):
     iban: str = ''
 
 
-@router.post('/firm/register', tags=['Kayıt'], auth=None)
+@router.post('/firm/register', tags=['Kayıt'])
 def register_firm_and_user(request: HttpRequest, payload: FirmRegisterIn):
-    """Firma ve yönetici hesabı oluşturur. Basit, tek transaction içinde."""
+    """Firma ve yönetici hesabı oluşturur.
+
+    DİKKAT: Bu endpoint artık yalnızca süperuser (admin) tarafından kullanılabilir.
+    Yeni kullanıcıların varsayılan rolü müşteri (customer) olacaktır; firma ve yönetici
+    atamalarını Django admin üzerinden yapabilirsiniz veya bu endpoint'i admin token
+    ile çağırabilirsiniz.
+    """
+    user = getattr(request, 'auth', None)
+    if not user or not getattr(user, 'is_superuser', False):
+        return JsonResponse({'detail': 'Süper kullanıcı yetkisi gereklidir.'}, status=403)
+
+    # Basit validasyon
     if User.objects.filter(username=payload.username).exists() or User.objects.filter(email=payload.email).exists():
         return JsonResponse({'detail': 'Kullanıcı adı veya e-posta zaten kullanımda.'}, status=400)
 
@@ -270,7 +359,7 @@ def register_firm_and_user(request: HttpRequest, payload: FirmRegisterIn):
                 is_active=True
             )
 
-            user = User.objects.create(
+            user_obj = User.objects.create(
                 username=payload.username,
                 email=payload.email,
                 full_name=payload.full_name,
@@ -282,7 +371,6 @@ def register_firm_and_user(request: HttpRequest, payload: FirmRegisterIn):
             )
 
             # Ayrıca core.Company objesini de oluşturalım ve firmaya eşleştirelim.
-            # owner alanı nullable yaptığımız için burada None bırakıyoruz.
             company = Company.objects.create(
                 owner=None,
                 name=payload.firm_name,
@@ -294,7 +382,128 @@ def register_firm_and_user(request: HttpRequest, payload: FirmRegisterIn):
     except Exception as e:
         return JsonResponse({'detail': f'Kayıt sırasında hata oluştu: {str(e)}'}, status=400)
 
-    return {'success': True, 'firm_id': str(firm.id), 'user_id': user.id}
+    return {'success': True, 'firm_id': str(firm.id), 'user_id': user_obj.id}
+
+
+# =======================================================
+# ADMIN ENDPOINTLER (Süperuser gerektirir)
+# =======================================================
+
+@router.get('/firm/services', response=List[ServiceSchema], tags=['Firma Paneli - Hizmetler'])
+def list_firm_services(request: HttpRequest):
+    """Firma yöneticisinin kendi firmalarının hizmetlerini listeler"""
+    user = request.auth
+    if not user:
+        return JsonResponse({'detail': 'Yetkilendirme gerekli.'}, status=401)
+    
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    
+    # Get company by firm slug
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+    
+    services = Service.objects.filter(company=company).select_related('company', 'category')
+    return list(services)
+
+
+@router.post('/firm/services', response=ServiceSchema, tags=['Firma Paneli - Hizmetler'])
+def create_firm_service(request: HttpRequest, payload: ServiceCreateIn):
+    """Firma yöneticisi yeni hizmet oluşturur"""
+    user = request.auth
+    if not user:
+        return JsonResponse({'detail': 'Yetkilendirme gerekli.'}, status=401)
+    
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+    
+    try:
+        service = Service.objects.create(
+            company=company,
+            title=payload.title,
+            description=payload.description,
+            price_range_min=payload.price_range_min,
+            price_range_max=payload.price_range_max,
+            category_id=payload.category,
+        )
+        return service
+    except Exception as e:
+        return JsonResponse({'detail': f'Hizmet oluşturma hatası: {str(e)}'}, status=400)
+
+
+@router.get('/firm/services/{service_id}', response=ServiceSchema, tags=['Firma Paneli - Hizmetler'])
+def get_firm_service(request: HttpRequest, service_id: int):
+    """Firma yöneticisi kendi hizmetini görüntüler"""
+    user = request.auth
+    if not user:
+        return JsonResponse({'detail': 'Yetkilendirme gerekli.'}, status=401)
+    
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+    
+    service = get_object_or_404(Service, id=service_id, company=company)
+    return service
+
+
+@router.put('/firm/services/{service_id}', response=ServiceSchema, tags=['Firma Paneli - Hizmetler'])
+def update_firm_service(request: HttpRequest, service_id: int, payload: ServiceCreateIn):
+    """Firma yöneticisi kendi hizmetini günceller"""
+    user = request.auth
+    if not user:
+        return JsonResponse({'detail': 'Yetkilendirme gerekli.'}, status=401)
+    
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+    
+    service = get_object_or_404(Service, id=service_id, company=company)
+    
+    service.title = payload.title
+    service.description = payload.description
+    service.price_range_min = payload.price_range_min
+    service.price_range_max = payload.price_range_max
+    if payload.category:
+        service.category_id = payload.category
+    service.save()
+    
+    return service
+
+
+@router.delete('/firm/services/{service_id}', tags=['Firma Paneli - Hizmetler'])
+def delete_firm_service(request: HttpRequest, service_id: int):
+    """Firma yöneticisi hizmetini siler"""
+    user = request.auth
+    if not user:
+        return JsonResponse({'detail': 'Yetkilendirme gerekli.'}, status=401)
+    
+    user_firm = getattr(user, 'firm', None)
+    if not user_firm:
+        return JsonResponse({"detail": "Bu işlem için bir firmaya bağlı olmanız gerekir."}, status=403)
+    
+    company = Company.objects.filter(slug=user_firm.slug).first()
+    if not company:
+        return JsonResponse({"detail": "Firmaya ait şirket kaydı bulunamadı."}, status=404)
+    
+    service = get_object_or_404(Service, id=service_id, company=company)
+    service.delete()
+    
+    return {"success": True, "message": "Hizmet başarıyla silindi."}
 
 
 # =======================================================
@@ -321,3 +530,13 @@ api.add_router("/core", router)
 
 # Firma yönetim router'ını core altında expose edelim (ör: /api/core/firm/management/...)
 api.add_router("/core/firm/management", firm_management_router)
+
+# Kullanıcı yönetim router'ını expose edelim (ör: /api/users/addresses)
+api.add_router("/users", users_management_router)
+
+
+# Kategori listeleme (Herkese açık)
+@router.get('/categories', response=List[CategorySchema], tags=['Katalog'], auth=None)
+def list_categories(request: HttpRequest):
+    from core.models import Category
+    return Category.objects.all().order_by('name')

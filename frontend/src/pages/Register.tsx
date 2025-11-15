@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, ArrowRight, Eye, EyeOff, Building2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
 
@@ -14,7 +14,7 @@ interface RegisterResponse {
 
 export default function Register() {
     const navigate = useNavigate();
-    const [registerType, setRegisterType] = useState<'customer' | 'firm'>('customer');
+    // Registrations are customer-only via frontend. Firm creation is admin-only.
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -54,10 +54,7 @@ export default function Register() {
             return false;
         }
 
-        if (registerType === 'firm' && !formData.firm_name) {
-            setError('Firma adı zorunludur');
-            return false;
-        }
+        // Firma kayıtları frontend üzerinden yapılamaz (admin tarafından yönetilir)
 
         return true;
     };
@@ -71,8 +68,8 @@ export default function Register() {
         setIsLoading(true);
 
         try {
-            let endpoint = `${API_BASE_URL}/api/core/users/register`;
-            let payload: any = {
+            const endpoint = `${API_BASE_URL}/api/core/users/register`;
+            const payload: any = {
                 username: formData.username,
                 email: formData.email,
                 full_name: formData.full_name,
@@ -80,33 +77,14 @@ export default function Register() {
                 is_firm: false,
             };
 
-            if (registerType === 'firm') {
-                endpoint = `${API_BASE_URL}/api/core/firm/register`;
-                payload = {
-                    username: formData.username,
-                    email: formData.email,
-                    full_name: formData.full_name,
-                    password: formData.password,
-                    firm_name: formData.firm_name,
-                    location: formData.location,
-                    tax_number: '',
-                    legal_address: '',
-                    phone_number: '',
-                    working_hours: '',
-                    iban: '',
-                };
-            }
-
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
-                const data = await response.json();
+                const data = await response.json().catch(() => ({ detail: 'Kayıt başarısız' }));
                 throw new Error(data.detail || 'Kayıt başarısız');
             }
 
@@ -140,31 +118,8 @@ export default function Register() {
                         </p>
                     </div>
 
-                    {/* Register Type Selection */}
-                    <div className="flex gap-3 mb-8">
-                        <button
-                            type="button"
-                            onClick={() => setRegisterType('customer')}
-                            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${registerType === 'customer'
-                                    ? 'bg-blue-600 text-white shadow-lg'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                                }`}
-                        >
-                            <User className="w-4 h-4 inline mr-2" />
-                            Müşteri
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setRegisterType('firm')}
-                            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${registerType === 'firm'
-                                    ? 'bg-blue-600 text-white shadow-lg'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                                }`}
-                        >
-                            <Building2 className="w-4 h-4 inline mr-2" />
-                            Firma
-                        </button>
-                    </div>
+                    {/* Kayıt tipi: yalnızca müşteri kaydı (admin frontend veya admin API ile firma oluşturulur) */}
+                    <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">Hesap türü: <strong>Müşteri</strong> (Firma kayıtları sadece yönetici tarafından yapılır)</div>
 
                     {error && (
                         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-lg">
@@ -224,39 +179,7 @@ export default function Register() {
                             />
                         </div>
 
-                        {registerType === 'firm' && (
-                            <>
-                                <div>
-                                    <label htmlFor="firm_name" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                                        Firma Adı *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="firm_name"
-                                        name="firm_name"
-                                        value={formData.firm_name}
-                                        onChange={handleChange}
-                                        placeholder="Firma adı"
-                                        className="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="location" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                                        Konum
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="location"
-                                        name="location"
-                                        value={formData.location}
-                                        onChange={handleChange}
-                                        placeholder="Şehir / Bölge"
-                                        className="w-full px-4 py-2 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
-                                    />
-                                </div>
-                            </>
-                        )}
+                        {/* Firma özel alanları frontend üzerinden izin verilmiyor (admin tarafından yönetilir) */}
 
                         <div>
                             <label htmlFor="password" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">

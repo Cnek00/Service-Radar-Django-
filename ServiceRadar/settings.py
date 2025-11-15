@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'rest_framework',        # Django Rest Framework (JWT altyapısı için)
     'corsheaders',           # React CORS desteği için
     'haystack',              # Arama motoru
-    'django_q',              # Async tasks
+    # 'django_q',              # Async tasks (incompatible with Django 5.x)
     
     'allauth',
     'allauth.account',

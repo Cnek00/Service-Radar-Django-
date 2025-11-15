@@ -30,7 +30,17 @@ class FirmWorkflowIntegrationTest(TestCase):
     def test_full_firm_workflow(self):
         """Test complete workflow from firm registration to referral acceptance."""
         
-        # ===== STEP 1: Register a Firm and Admin =====
+        # ===== STEP 1: Create a superuser and obtain token (firm registration is admin-only) =====
+        admin_user = User.objects.create_superuser(username='admin', email='admin@example.com', password='AdminPass123!')
+        login_admin = {
+            'username': 'admin',
+            'password': 'AdminPass123!'
+        }
+        admin_login_resp = self.client.post('/auth/token/', data=json.dumps(login_admin), content_type='application/json')
+        self.assertEqual(admin_login_resp.status_code, 200, f"Admin login failed: {admin_login_resp.content}")
+        admin_token = admin_login_resp.json()['access']
+
+        # ===== STEP 2: Register a Firm and Admin (performed by superuser) =====
         firm_register_data = {
             'username': 'test_firm_admin',
             'email': 'test_firm_admin@example.com',
@@ -48,7 +58,8 @@ class FirmWorkflowIntegrationTest(TestCase):
         response = self.client.post(
             f'{self.api_base}/core/firm/register',
             data=json.dumps(firm_register_data),
-            content_type='application/json'
+            content_type='application/json',
+            HTTP_AUTHORIZATION=f'Bearer {admin_token}'
         )
         
         self.assertEqual(response.status_code, 200, f"Firm registration failed: {response.content}")
@@ -78,7 +89,7 @@ class FirmWorkflowIntegrationTest(TestCase):
         self.assertEqual(company.name, 'Test Firm Inc')
         self.assertIsNone(company.owner)
         
-        # ===== STEP 2: Login and Obtain JWT Token =====
+    # ===== STEP 3: Login and Obtain JWT Token =====
         login_data = {
             'username': 'test_firm_admin',
             'password': 'SecurePass123!'

@@ -17,6 +17,15 @@ class CompanySchema(Schema):
     slug: str
     description: str
     location_text: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    tax_number: Optional[str] = None
+    trade_registry_number: Optional[str] = None
+    logo: Optional[str] = None
+    cover_image: Optional[str] = None
+    min_order_amount: Optional[float] = None
+    default_delivery_fee: Optional[float] = None
+    estimated_delivery_time_minutes: Optional[int] = None
 
 class ServiceSchema(Schema):
     """Hizmet Bilgilerini Müşteriye Göstermek İçin."""
@@ -26,6 +35,7 @@ class ServiceSchema(Schema):
     price_range_min: Optional[float]
     price_range_max: Optional[float]
     company: CompanySchema # Ait olduğu firmanın detayları
+    category: Optional['CategorySchema'] = None
     
 
 # --- MÜŞTERİ GİRİŞ ŞEMALARI (Veri Alma) ---
@@ -68,3 +78,37 @@ class TokenSchema(Schema):
     
     # YENİ KRİTİK ALAN
     is_superuser: bool
+
+
+class CompanyUpdateIn(Schema):
+    name: Optional[str]
+    description: Optional[str]
+    location_text: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+    tax_number: Optional[str]
+    trade_registry_number: Optional[str]
+    logo: Optional[str]
+    cover_image: Optional[str]
+    working_hours: Optional[dict]
+    special_days: Optional[dict]
+    min_order_amount: Optional[float]
+    default_delivery_fee: Optional[float]
+    estimated_delivery_time_minutes: Optional[int]
+    delivery_areas: Optional[dict]
+
+
+class CategorySchema(Schema):
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+
+
+class ServiceCreateIn(Schema):
+    """Firma tarafından hizmet oluştururken kullanılır."""
+    title: str
+    description: str
+    price_range_min: float
+    price_range_max: float
+    category: Optional[int] = None  # Category ID

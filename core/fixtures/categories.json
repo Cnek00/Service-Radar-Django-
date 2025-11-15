@@ -1,0 +1,52 @@
+[
+    {
+        "name": "Elektronik",
+        "slug": "elektronik",
+        "description": "Bilgisayar, telefon, tabletler ve diğer elektronik cihazlar"
+    },
+    {
+        "name": "Yazılım",
+        "slug": "yazilim",
+        "description": "Yazılım geliştirme, web tasarımı ve uygulamalar"
+    },
+    {
+        "name": "Mekanik",
+        "slug": "mekanik",
+        "description": "Araç tamiri, makine onarımı ve mekanik hizmetleri"
+    },
+    {
+        "name": "Bakım & Temizlik",
+        "slug": "bakim-temizlik",
+        "description": "Temizlik, bakım ve yapı onarım hizmetleri"
+    },
+    {
+        "name": "Danışmanlık",
+        "slug": "danismanlik",
+        "description": "İş danışmanlığı, mali danışmanlık ve hukuki hizmetler"
+    },
+    {
+        "name": "Tasarım",
+        "slug": "tasarim",
+        "description": "Grafik tasarım, iç tasarım ve mimar hizmetleri"
+    },
+    {
+        "name": "Eğitim",
+        "slug": "egitim",
+        "description": "Kurs, eğitim ve özel ders hizmetleri"
+    },
+    {
+        "name": "Sağlık",
+        "slug": "saglik",
+        "description": "Doktor, dişçi, fizyoterapist ve sağlık hizmetleri"
+    },
+    {
+        "name": "Turizm",
+        "slug": "turizm",
+        "description": "Otel, rehber, turistik hizmetler"
+    },
+    {
+        "name": "Gıda",
+        "slug": "gida",
+        "description": "Restoran, kafe, catering ve gıda hizmetleri"
+    }
+]

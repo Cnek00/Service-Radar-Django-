@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SlidersHorizontal, Sparkles, TrendingUp } from 'lucide-react';
 import AdvancedSearchBar from '../components/AdvancedSearchBar';
+import CategoriesPanel from '../components/CategoriesPanel';
 import EnhancedServiceCard from '../components/EnhancedServiceCard';
 import FilterPanel from '../components/FilterPanel';
 import type { IService, FilterOptions } from '../types';
@@ -23,11 +24,29 @@ export default function HomePage({ onSuccess }: HomePageProps) {
     applyFilters();
   }, [services, activeFilters]);
 
-  const searchServices = async (query: string, location: string): Promise<IService[]> => {
+  // Load initial services (browse all) on mount so homepage shows products/categories without needing a search
+  useEffect(() => {
+    // fetch all services (no query, no location)
+    (async () => {
+      setIsLoading(true);
+      try {
+        const results = await searchServices('', '');
+        setServices(results);
+        setHasSearched(true);
+      } catch (err) {
+        onSuccess && onSuccess('Ana sayfa yüklenirken bir hata oluştu.');
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  const searchServices = async (query: string, location: string, category?: string): Promise<IService[]> => {
     try {
       const params = new URLSearchParams();
       if (query) params.append('query', query);
       if (location) params.append('location', location);
+      if (category) params.append('category', category);
 
       const url = `${API_BASE_URL}/core/services/search?${params.toString()}`;
       const response = await fetch(url);
@@ -44,14 +63,28 @@ export default function HomePage({ onSuccess }: HomePageProps) {
     }
   };
 
-  const handleSearchSubmit = async (query: string, location: string) => {
+  const handleSearchSubmit = async (query: string, location: string, category?: string) => {
     setIsLoading(true);
     try {
-      const results = await searchServices(query, location);
+      const results = await searchServices(query, location, category);
       setServices(results);
       setHasSearched(true);
     } catch (error) {
       onSuccess('Arama sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCategorySelect = async (category: string | null) => {
+    // If null, load all
+    setIsLoading(true);
+    try {
+      const results = await searchServices('', '', category ?? undefined);
+      setServices(results);
+      setHasSearched(true);
+    } catch (err) {
+      onSuccess('Kategori yüklenirken hata oluştu');
     } finally {
       setIsLoading(false);
     }
@@ -131,6 +164,9 @@ export default function HomePage({ onSuccess }: HomePageProps) {
         </div>
 
         <AdvancedSearchBar onSearchSubmit={handleSearchSubmit} />
+
+        {/* Categories strip - clicking a category triggers a search via handleCategorySelect */}
+        <CategoriesPanel onSelect={handleCategorySelect} />
 
         {hasSearched && (
           <div className="mt-8">
